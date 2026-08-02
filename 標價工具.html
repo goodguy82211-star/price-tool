@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>⚡ 小魔丸連線 - 相片標價產生器</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f8fb; color: #132c4d; margin: 0; padding: 15px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        h2 { margin-top: 0; color: #132c4d; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 20px;}
+        
+        .mode-switch { display: flex; background: #eef3f8; border-radius: 12px; padding: 5px; border: 1px solid #c6d4e1; width: 100%; max-width: 400px;}
+        .mode-switch label { flex: 1; text-align: center; padding: 8px 10px; font-size: 13px; font-weight: bold; cursor: pointer; border-radius: 8px; color: #4a5568; transition: 0.3s; white-space: nowrap;}
+        .mode-switch input[type="radio"] { display: none; }
+        .mode-switch input[type="radio"]:checked + span { background: #132c4d; color: white; display: block; border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        
+        .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
+        .btn { background: #132c4d; color: white; border: none; padding: 12px 16px; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; flex: 1; min-width: 45%; text-align: center;}
+        .btn:hover { opacity: 0.8; transform: translateY(-2px); }
+        .btn-danger { background: #e53e3e; }
+        .btn-success { background: #319795; }
+        .btn-primary { background: #3182ce; }
+        .btn-warning { background: #d69e2e; }
+        
+        .slider-container { display: flex; align-items: center; background: #eef3f8; padding: 12px 15px; border-radius: 12px; border: 1px solid #c6d4e1; margin-bottom: 15px; }
+        .slider-container label { font-weight: bold; margin-right: 15px; font-size: 14px; white-space: nowrap; }
+        input[type="range"] { flex: 1; cursor: pointer; accent-color: #132c4d; }
+        
+        /* 避免手機觸控時產生選取反白或預設選單 */
+        .canvas-container { position: relative; border: 2px dashed #c6d4e1; border-radius: 16px; overflow: hidden; background: #fafafa; text-align: center; min-height: 300px; display: flex; justify-content: center; align-items: center; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;}
+        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; cursor: crosshair; touch-action: none;}
+        
+        .tip { font-size: 13px; color: #718096; margin-top: 8px; line-height: 1.6; background: #fffbeb; padding: 12px 15px; border-left: 4px solid #f6e05e; border-radius: 8px; margin-bottom: 20px;}
+        
+        #toast {
+            position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%);
+            background: #132c4d; color: white; padding: 14px 24px;
+            border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            font-weight: bold; font-size: 14px; display: none; z-index: 9999;
+            white-space: nowrap; border-left: 5px solid #319795;
+        }
+    </style>
+</head>
+<body>
+
+<div id="toast">✅ 同步成功！</div>
+
+<div class="container">
+    <h2>
+        ⚡ 相片標價產生器
+        <div class="mode-switch">
+            <label>
+                <input type="radio" name="inputMode" value="click" onchange="changeMode(this.value)">
+                <span>🖱️ 點擊小標籤</span>
+            </label>
+            <label>
+                <input type="radio" name="inputMode" value="cover" checked onchange="changeMode(this.value)">
+                <span>🔲 框選完美遮蓋</span>
+            </label>
+        </div>
+    </h2>
+    
+    <div class="controls">
+        <input type="file" id="image-loader" accept="image/*" style="display:none;">
+        <button class="btn" onclick="document.getElementById('image-loader').click()">📁 選擇照片</button>
+        <button class="btn btn-warning" onclick="copyImageToClipboard()">📋 複製圖片</button>
+        <button class="btn btn-primary" onclick="syncAllToBackend()" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
+        <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原</button>
+        <button class="btn btn-success" onclick="downloadImage()">💾 下載圖片</button>
+    </div>
+
+    <div class="slider-container">
+        <label for="size-slider">🔍 標籤大小：</label>
+        <input type="range" id="size-slider" min="10" max="100" value="25" oninput="redrawCanvas()">
+    </div>
+    
+    <div class="tip">
+        <strong>📱 手機操作秘訣：</strong><br>
+        1. 點擊 <b>【📁 選擇照片】</b> 從手機相簿載入圖片。<br>
+        2. 用手指把手寫紅字<b>框起來</b>，輸入代碼與價格後，標籤背景會自動延展填滿框選範圍，完美遮蓋！<br>
+        3. <b>雙擊 (連點兩下)</b> 標籤可以重新編輯。<br>
+        4. 點擊 <b>【☁️ 確認並同步到後台】</b> 寫入雲端。
+    </div>
+    
+    <div class="canvas-container" id="canvas-box">
+        <p id="placeholder-text" style="color: #a0aec0; font-weight: bold; font-size: 16px;">請點選上方「選擇照片」載入</p>
+        <canvas id="photo-canvas" style="display:none;"></canvas>
+    </div>
+</div>
+
+<script>
+    // ⚠️ 確保這裡是您最新的 GAS 網址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxjeKY2LuG_z2NxPdYsnGf8OF8JIy6LqxpHuYTd-rjVZ8Wj5spuU07N8UsZzoCeWbuE/exec";
+
+    const canvas = document.getElementById('photo-canvas');
+    const ctx = canvas.getContext('2d');
+    let img = new Image();
+    let badgeHistory = []; 
+    
+    let currentMode = 'cover'; 
+    let isDragging = false, dragTargetIndex = -1, dragOffsetX = 0, dragOffsetY = 0;
+    let isClick = true, startX = 0, startY = 0;
+    let isDrawingBox = false, boxCurrentX = 0, boxCurrentY = 0;
+    let lastTapTime = 0; // 手機雙擊判定用
+
+    function changeMode(mode) {
+        currentMode = mode;
+    }
+
+    function calculateTWD(jpy) {
+        let val = parseFloat(jpy) || 0;
+        let rate = val <= 1000 ? 0.3 : val <= 2000 ? 0.27 : val <= 5000 ? 0.25 : val <= 10000 ? 0.24 : 0.23;
+        return Math.ceil((val * rate) / 10) * 10;
+    }
+
+    document.getElementById('image-loader').addEventListener('change', function(e) {
+        let reader = new FileReader();
+        reader.onload = function(event) { img.onload = function() { initCanvas(); }; img.src = event.target.result; }
+        if(e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
+    });
+
+    // 仍保留電腦版 Ctrl+V 貼上功能
+    document.addEventListener('paste', function(e) {
+        let items = e.clipboardData.items;
+        for (let item of items) {
+            if (item.type.indexOf('image') !== -1) {
+                let blob = item.getAsFile();
+                let reader = new FileReader();
+                reader.onload = function(event) { img.onload = function() { initCanvas(); }; img.src = event.target.result; };
+                reader.readAsDataURL(blob);
+                break;
+            }
+        }
+    });
+
+    function initCanvas() {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        document.getElementById('placeholder-text').style.display = 'none';
+        canvas.style.display = 'block';
+        badgeHistory = [];
+        redrawCanvas();
+    }
+
+    // 整合滑鼠與觸控的座標取得
+    function getPointerPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        }
+        
+        return { 
+            x: (clientX - rect.left) * (canvas.width / rect.width), 
+            y: (clientY - rect.top) * (canvas.height / rect.height) 
+        };
+    }
+
+    function getBadgeHitbox(b) {
+        let text = b.code ? `${b.code} NT$${b.twd}` : `NT$${b.twd}`;
+        let subText = `(¥${b.jpy})`;
+        let sf = document.getElementById('size-slider').value;
+        let fontSize = Math.max(8, Math.round((canvas.width / 1000) * sf));
+        let subFontSize = Math.round(fontSize * 0.75);
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        let textWidth = ctx.measureText(text).width;
+        ctx.font = `${subFontSize}px sans-serif`;
+        let subWidth = ctx.measureText(subText).width;
+        
+        let paddingX = Math.max(10, fontSize * 0.8), paddingY = Math.max(8, fontSize * 0.6);
+        let contentWidth = Math.max(textWidth, subWidth) + paddingX * 2;
+        let contentHeight = fontSize + subFontSize + paddingY * 2;
+        
+        let finalBoxWidth = Math.max(contentWidth, b.cw || 0);
+        let finalBoxHeight = Math.max(contentHeight, b.ch || 0);
+
+        return { left: b.x - finalBoxWidth / 2, right: b.x + finalBoxWidth / 2, top: b.y - finalBoxHeight / 2, bottom: b.y + finalBoxHeight / 2 };
+    }
+
+    function parseAndAddBadge(input, x, y, cw = 0, ch = 0) {
+        if (!input) return;
+        let code = "", jpy = 0;
+        
+        input = input.trim().replace(/\s+/g, ' ');
+        let parts = input.split(' ');
+        
+        if (parts.length > 1) { 
+            code = parts[0].toUpperCase(); 
+            for (let i = parts.length - 1; i >= 1; i--) {
+                let parsed = parseInt(parts[i]);
+                if (!isNaN(parsed)) {
+                    jpy = parsed;
+                    break;
+                }
+            }
+        } else { 
+            jpy = parseInt(parts[0]) || 0; 
+        }
+
+        if (jpy <= 0) return alert("⚠️ 請輸入有效的日幣金額！");
+        let twd = calculateTWD(jpy);
+        
+        badgeHistory.push({ x, y, code, jpy, twd, cw, ch });
+        redrawCanvas();
+    }
+
+    // 處理雙擊編輯事件
+    function triggerDoubleTap(pos) {
+        for (let i = badgeHistory.length - 1; i >= 0; i--) {
+            let box = getBadgeHitbox(badgeHistory[i]);
+            if (pos.x >= box.left && pos.x <= box.right && pos.y >= box.top && pos.y <= box.bottom) {
+                let b = badgeHistory[i];
+                let defaultVal = (b.code ? b.code + " " : "") + b.jpy;
+                
+                // 延遲一點點跳出 Prompt，避免手機鍵盤彈出干擾畫面
+                setTimeout(() => {
+                    let input = prompt("✏️ 請修改【商品代碼】與【日幣價格】", defaultVal);
+                    if (input) {
+                        let code = "", jpy = 0;
+                        let parts = input.trim().replace(/\s+/g, ' ').split(' ');
+                        if (parts.length > 1) { 
+                            code = parts[0].toUpperCase(); 
+                            for (let k = parts.length - 1; k >= 1; k--) {
+                                if (!isNaN(parseInt(parts[k]))) { jpy = parseInt(parts[k]); break; }
+                            }
+                        } else { jpy = parseInt(parts[0]) || 0; }
+                        
+                        if (jpy > 0) {
+                            b.code = code; b.jpy = jpy; b.twd = calculateTWD(jpy); redrawCanvas();
+                        }
+                    }
+                }, 50);
+                return true; // 成功觸發編輯
+            }
+        }
+        return false;
+    }
+
+    // --- 統一事件處理器 (同時支援滑鼠與觸控) ---
+    function handlePointerDown(e) {
+        if (!img.src) return;
+        
+        // 手機雙擊判定邏輯
+        let currentTime = new Date().getTime();
+        let tapLength = currentTime - lastTapTime;
+        const pos = getPointerPos(e);
+
+        if (tapLength < 300 && tapLength > 0) {
+            if (triggerDoubleTap(pos)) {
+                e.preventDefault();
+                return;
+            }
+        }
+        lastTapTime = currentTime;
+
+        startX = pos.x; startY = pos.y; isClick = true;
+
+        for (let i = badgeHistory.length - 1; i >= 0; i--) {
+            let box = getBadgeHitbox(badgeHistory[i]);
+            if (pos.x >= box.left && pos.x <= box.right && pos.y >= box.top && pos.y <= box.bottom) {
+                isDragging = true; dragTargetIndex = i; 
+                dragOffsetX = pos.x - badgeHistory[i].x; dragOffsetY = pos.y - badgeHistory[i].y;
+                return;
+            }
+        }
+
+        if (currentMode === 'cover') {
+            isDrawingBox = true; boxCurrentX = pos.x; boxCurrentY = pos.y;
+        }
+    }
+
+    function handlePointerMove(e) {
+        if (!img.src) return;
+        
+        // 如果正在畫框或拖曳，禁止網頁預設的捲動行為
+        if (isDragging || isDrawingBox) {
+            e.preventDefault(); 
+        }
+
+        const pos = getPointerPos(e);
+        
+        if (isDragging && dragTargetIndex !== -1) {
+            isClick = false; 
+            badgeHistory[dragTargetIndex].x = pos.x - dragOffsetX; 
+            badgeHistory[dragTargetIndex].y = pos.y - dragOffsetY; 
+            redrawCanvas();
+        } 
+        else if (isDrawingBox) {
+            isClick = false;
+            boxCurrentX = pos.x; boxCurrentY = pos.y;
+            redrawCanvas();
+            
+            ctx.save();
+            ctx.strokeStyle = "#e53e3e"; ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
+            ctx.strokeRect(startX, startY, boxCurrentX - startX, boxCurrentY - startY);
+            ctx.fillStyle = "rgba(229, 62, 62, 0.2)";
+            ctx.fillRect(startX, startY, boxCurrentX - startX, boxCurrentY - startY);
+            ctx.restore();
+        } 
+        else {
+            if (Math.abs(pos.x - startX) > 5 || Math.abs(pos.y - startY) > 5) isClick = false; 
+        }
+    }
+
+    function handlePointerUp(e) {
+        if (!img.src) return;
+        
+        if (isDragging) { 
+            isDragging = false; dragTargetIndex = -1; 
+        } 
+        else if (isDrawingBox) {
+            isDrawingBox = false;
+            let w = Math.abs(boxCurrentX - startX);
+            let h = Math.abs(boxCurrentY - startY);
+            let cx = Math.min(startX, boxCurrentX) + w / 2;
+            let cy = Math.min(startY, boxCurrentY) + h / 2;
+            
+            if (w > 20 && h > 20) {
+                setTimeout(() => {
+                    let input = prompt("✏️ 請輸入【代碼與日幣】(例: A02 20)");
+                    if (input) parseAndAddBadge(input, cx, cy, w, h);
+                    else redrawCanvas();
+                }, 50);
+            } else {
+                redrawCanvas();
+                if (isClick) {
+                    setTimeout(() => {
+                        let input = prompt("請輸入【商品代碼】與【日幣價格】\n(例如：A02 1800)");
+                        parseAndAddBadge(input, startX, startY);
+                    }, 50);
+                }
+            }
+        } 
+        else if (isClick && currentMode === 'click') {
+            setTimeout(() => {
+                let input = prompt("請輸入【商品代碼】與【日幣價格】\n(例如：A02 1800)");
+                parseAndAddBadge(input, startX, startY);
+            }, 50);
+        }
+    }
+
+    // 註冊滑鼠事件
+    canvas.addEventListener('mousedown', handlePointerDown);
+    canvas.addEventListener('mousemove', handlePointerMove);
+    canvas.addEventListener('mouseup', handlePointerUp);
+    canvas.addEventListener('mouseleave', function() {
+        if (isDragging) { isDragging = false; dragTargetIndex = -1; }
+        if (isDrawingBox) { isDrawingBox = false; redrawCanvas(); }
+    });
+    // 保留電腦版原生的雙擊
+    canvas.addEventListener('dblclick', function(e) { triggerDoubleTap(getPointerPos(e)); });
+
+    // 註冊觸控事件 (設定 passive: false 才能阻止捲動)
+    canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
+    canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
+    canvas.addEventListener('touchend', handlePointerUp);
+    canvas.addEventListener('touchcancel', function() {
+        if (isDragging) { isDragging = false; dragTargetIndex = -1; }
+        if (isDrawingBox) { isDrawingBox = false; redrawCanvas(); }
+    });
+    // ----------------------------------------------------
+
+    function redrawCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        ctx.drawImage(img, 0, 0);
+        badgeHistory.forEach(b => { drawPriceBadge(b.x, b.y, b.code, b.jpy, b.twd, b.cw, b.ch); });
+    }
+
+    function drawPriceBadge(x, y, code, jpy, twd, cw = 0, ch = 0) {
+        ctx.save();
+        let text = code ? `${code} NT$${twd}` : `NT$${twd}`;
+        let subText = `(¥${jpy})`;
+        let sf = document.getElementById('size-slider').value;
+        let fontSize = Math.max(8, Math.round((canvas.width / 1000) * sf));
+        let subFontSize = Math.round(fontSize * 0.75);
+        
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        let textWidth = ctx.measureText(text).width;
+        ctx.font = `${subFontSize}px sans-serif`;
+        let subWidth = ctx.measureText(subText).width;
+        
+        let paddingX = Math.max(10, fontSize * 0.8), paddingY = Math.max(8, fontSize * 0.6);
+        let contentWidth = Math.max(textWidth, subWidth) + paddingX * 2;
+        let contentHeight = fontSize + subFontSize + paddingY * 2;
+        
+        let finalBoxWidth = Math.max(contentWidth, cw);
+        let finalBoxHeight = Math.max(contentHeight, ch);
+        
+        ctx.fillStyle = "rgba(19, 44, 77, 0.95)"; 
+        ctx.shadowColor = "rgba(0, 0, 0, 0.4)"; 
+        ctx.shadowBlur = fontSize * 0.5;
+        
+        let rx = x - finalBoxWidth / 2, ry = y - finalBoxHeight / 2;
+        ctx.beginPath();
+        if (ctx.roundRect) { 
+            ctx.roundRect(rx, ry, finalBoxWidth, finalBoxHeight, Math.max(4, fontSize * 0.4)); 
+        } else { 
+            ctx.rect(rx, ry, finalBoxWidth, finalBoxHeight); 
+        }
+        ctx.fill();
+        
+        ctx.shadowBlur = 0; ctx.textAlign = "center"; ctx.textBaseline = "top";
+        let textStartY = y - (fontSize + subFontSize + 2) / 2;
+        
+        ctx.fillStyle = "#ffe066"; ctx.font = `bold ${fontSize}px sans-serif`; 
+        ctx.fillText(text, x, textStartY);
+        
+        ctx.fillStyle = "#cbd5e0"; ctx.font = `${subFontSize}px sans-serif`; 
+        ctx.fillText(subText, x, textStartY + fontSize + 2);
+        
+        ctx.restore();
+    }
+
+    async function syncAllToBackend() {
+        let validBadges = badgeHistory.filter(b => b.code !== "");
+        if (validBadges.length === 0) {
+            return showToast("⚠️ 目前沒有含有代碼的標籤可以同步！");
+        }
+
+        let originalBtnText = event.target.innerText;
+        event.target.innerText = "⏳ 同步中...";
+        let successCount = 0;
+
+        for (let b of validBadges) {
+            try {
+                let res = await fetch(GAS_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ action: "syncPriceFromTool", productCode: b.code, newPrice: b.twd })
+                });
+                let txt = await res.text();
+                if(txt === "success") successCount++;
+            } catch (err) {
+                console.error("同步失敗:", err);
+            }
+        }
+        
+        event.target.innerText = originalBtnText;
+
+        if(successCount > 0) {
+            showToast(`✅ 同步完成！共更新 ${successCount} 筆商品資料。`);
+        } else {
+            showToast(`❌ 同步失敗，請檢查網路連線。`);
+        }
+    }
+
+    async function copyImageToClipboard() {
+        if (!img.src) return alert("請先選擇照片！");
+        try {
+            canvas.toBlob(async function(blob) {
+                const item = new ClipboardItem({ 'image/png': blob });
+                await navigator.clipboard.write([item]);
+                showToast("📋 圖片已複製！");
+            });
+        } catch (err) {
+            alert("⚠️ 您的手機瀏覽器不支援直接複製，請改用「下載圖片」按鈕。");
+        }
+    }
+
+    function showToast(msg) {
+        let toast = document.getElementById('toast');
+        toast.innerText = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+
+    function undoLastBadge() { if (badgeHistory.length > 0) { badgeHistory.pop(); redrawCanvas(); } }
+    
+    function downloadImage() {
+        if (!img.src) return alert("請先選擇照片！");
+        let link = document.createElement('a');
+        link.download = `標價圖_${new Date().getTime()}.png`;
+        link.href = canvas.toDataURL('image/png'); link.click();
+    }
+</script>
+</body>
+</html>

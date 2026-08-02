@@ -16,7 +16,9 @@
         
         .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
         .btn { background: #132c4d; color: white; border: none; padding: 12px 16px; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; flex: 1; min-width: 45%; text-align: center;}
-        .btn:hover { opacity: 0.8; transform: translateY(-2px); }
+        .btn:hover:not(:disabled) { opacity: 0.8; transform: translateY(-2px); }
+        .btn:disabled { cursor: not-allowed; opacity: 0.6; }
+        
         .btn-danger { background: #e53e3e; }
         .btn-success { background: #319795; }
         .btn-primary { background: #3182ce; }
@@ -26,6 +28,7 @@
         .slider-container label { font-weight: bold; margin-right: 15px; font-size: 14px; white-space: nowrap; }
         input[type="range"] { flex: 1; cursor: pointer; accent-color: #132c4d; }
         
+        /* 避免手機觸控時產生選取反白或預設選單 */
         .canvas-container { position: relative; border: 2px dashed #c6d4e1; border-radius: 16px; overflow: hidden; background: #fafafa; text-align: center; min-height: 300px; display: flex; justify-content: center; align-items: center; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;}
         canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; cursor: crosshair; touch-action: none;}
         
@@ -46,7 +49,6 @@
         .export-modal-content {
             background: white; padding: 25px 20px 20px 20px; border-radius: 20px; text-align: center; max-width: 90%; max-height: 90%; overflow-y: auto; position: relative;
         }
-        /* 💡 強制解除手機對這張圖片的長按封鎖 */
         .export-modal-content img {
             max-width: 100%; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 15px; border: 1px solid #dbe4f0;
             -webkit-touch-callout: default !important;
@@ -75,7 +77,6 @@
     <h2>
         ⚡ 相片標價產生器
         <div class="mode-switch">
-            <!-- 💡 修改這裡：將 checked 移到點擊小標籤 -->
             <label>
                 <input type="radio" name="inputMode" value="click" checked onchange="changeMode(this.value)">
                 <span>🖱️ 點擊小標籤</span>
@@ -91,7 +92,8 @@
         <input type="file" id="image-loader" accept="image/*" style="display:none;">
         <button class="btn" onclick="document.getElementById('image-loader').click()">📁 選擇照片</button>
         <button class="btn btn-warning" onclick="copyImageToClipboard()">📤 複製/分享圖片</button>
-        <button class="btn btn-primary" onclick="syncAllToBackend()" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
+        <!-- 💡 修正這裡：傳入 this 來綁定按鈕本身 -->
+        <button class="btn btn-primary" onclick="syncAllToBackend(this)" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原</button>
         <button class="btn btn-success" onclick="downloadImage()">💾 下載圖片</button>
     </div>
@@ -103,9 +105,9 @@
     
     <div class="tip">
         <strong>📱 成功秘訣：</strong><br>
-        1. ⚠️ <b>請務必點擊右上角「用 Safari 或 Chrome 開啟」</b>，不要在 LINE 的內建瀏覽器裡面操作！<br>
+        1. ⚠️ <b>請務必點擊右上角「用 Safari 或 Chrome 開啟」</b>，不要在 LINE 內建瀏覽器操作！<br>
         2. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面即可輸入代碼與價格產生標籤。<br>
-        3. 點擊 <b>【📤 複製/分享圖片】</b>，系統會直接跳出分享選項，或讓您長按圖片儲存。<br>
+        3. 點擊 <b>【📤 複製/分享圖片】</b>，系統會跳出分享選項，或讓您長按圖片儲存。<br>
         4. 點擊 <b>【☁️ 確認並同步到後台】</b> 寫入雲端。
     </div>
     
@@ -124,7 +126,6 @@
     let img = new Image();
     let badgeHistory = []; 
     
-    // 💡 修改這裡：將預設模式改為 click
     let currentMode = 'click'; 
     let isDragging = false, dragTargetIndex = -1, dragOffsetX = 0, dragOffsetY = 0;
     let isClick = true, startX = 0, startY = 0;
@@ -393,49 +394,55 @@
         ctx.restore();
     }
 
-    async function syncAllToBackend() {
+    // 💡 修正這裡：加入 (btn) 參數，確保精準鎖定按鈕，使用 try...finally 確保解鎖
+    async function syncAllToBackend(btn) {
         let validBadges = badgeHistory.filter(b => b.code !== "");
         if (validBadges.length === 0) return showToast("⚠️ 目前沒有含有代碼的標籤可以同步！");
 
-        let originalBtnText = event.target.innerText;
-        event.target.innerText = "⏳ 同步中...";
+        let originalBtnText = btn.innerText;
+        btn.innerText = "⏳ 同步中...";
+        btn.disabled = true; // 鎖定按鈕防止連點
         let successCount = 0;
 
-        for (let b of validBadges) {
-            try {
-                let res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "syncPriceFromTool", productCode: b.code, newPrice: b.twd }) });
-                if(await res.text() === "success") successCount++;
-            } catch (err) {}
+        try {
+            for (let b of validBadges) {
+                try {
+                    let res = await fetch(GAS_URL, { 
+                        method: "POST", 
+                        body: JSON.stringify({ action: "syncPriceFromTool", productCode: b.code, newPrice: b.twd }) 
+                    });
+                    if(await res.text() === "success") successCount++;
+                } catch (err) {
+                    console.error("單筆同步失敗:", err);
+                }
+            }
+            
+            if(successCount > 0) showToast(`✅ 同步完成！共更新 ${successCount} 筆商品資料。`);
+            else showToast(`❌ 同步失敗，請檢查網路連線。`);
+        } finally {
+            // 無論成功、失敗或斷線，100% 保證按鈕恢復原狀
+            btn.innerText = originalBtnText;
+            btn.disabled = false;
         }
-        
-        event.target.innerText = originalBtnText;
-        if(successCount > 0) showToast(`✅ 同步完成！共更新 ${successCount} 筆商品資料。`);
-        else showToast(`❌ 同步失敗，請檢查網路連線。`);
     }
 
-    // 💡 全面強化的分享/複製邏輯
-    async function copyImageToClipboard() {
+    function copyImageToClipboard() {
         if (!img.src) return alert("請先選擇照片！");
         
-        // 1. 保底機制：先把圖片塞進彈出視窗，就算後續原生分享失敗，也能讓使用者手動長按儲存
         let resultImg = document.getElementById('export-image-result');
         const dataUrl = canvas.toDataURL('image/png');
         resultImg.src = dataUrl;
         document.getElementById('image-export-modal').style.display = 'flex';
         
-        // 2. 嘗試呼叫手機原生分享 (直接喚醒 LINE 傳送介面)
         if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
             try {
-                const blob = await (await fetch(dataUrl)).blob();
-                const file = new File([blob], `標價圖_${new Date().getTime()}.png`, { type: 'image/png' });
-                await navigator.share({ title: '連線商品標價圖', files: [file] });
-                
-                // 如果分享成功，就自動關閉彈出視窗
-                closeExportModal();
+                fetch(dataUrl).then(res => res.blob()).then(blob => {
+                    const file = new File([blob], `標價圖_${new Date().getTime()}.png`, { type: 'image/png' });
+                    navigator.share({ title: '連線商品標價圖', files: [file] });
+                    closeExportModal();
+                });
                 return; 
-            } catch (err) {
-                console.log("原生分享取消或失敗，啟動彈窗長按機制");
-            }
+            } catch (err) {}
         }
     }
 
@@ -452,14 +459,13 @@
 
     function undoLastBadge() { if (badgeHistory.length > 0) { badgeHistory.pop(); redrawCanvas(); } }
     
-    // 💡 強化版的下載機制
     function downloadImage() {
         if (!img.src) return alert("請先選擇照片！");
         try {
             let link = document.createElement('a');
             link.download = `標價圖_${new Date().getTime()}.png`;
             link.href = canvas.toDataURL('image/png');
-            document.body.appendChild(link); // 加入這一行增加跨瀏覽器相容性
+            document.body.appendChild(link); 
             link.click();
             document.body.removeChild(link);
         } catch (err) {

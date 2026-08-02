@@ -38,11 +38,36 @@
             font-weight: bold; font-size: 14px; display: none; z-index: 9999;
             white-space: nowrap; border-left: 5px solid #319795;
         }
+
+        /* 💡 新增：手機長按專用彈出視窗樣式 */
+        #image-export-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(19, 44, 77, 0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px);
+        }
+        .export-modal-content {
+            background: white; padding: 25px 20px 20px 20px; border-radius: 20px; text-align: center; max-width: 90%; max-height: 90%; overflow-y: auto; position: relative;
+        }
+        .export-modal-content img {
+            max-width: 100%; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 15px; border: 1px solid #dbe4f0;
+        }
+        .close-modal-btn {
+            position: absolute; top: 12px; right: 18px; font-size: 28px; cursor: pointer; color: #a0aec0; font-weight: bold; line-height: 1; transition: 0.2s;
+        }
     </style>
 </head>
 <body>
 
 <div id="toast">✅ 同步成功！</div>
+
+<!-- 💡 新增：手機長按專用彈出視窗 -->
+<div id="image-export-modal">
+    <div class="export-modal-content">
+        <span class="close-modal-btn" onclick="closeExportModal()">×</span>
+        <h3 style="margin: 0; color: #132c4d; font-size: 18px;">👇 請長按下方圖片</h3>
+        <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">選擇「拷貝/複製」即可到 LINE 貼上</p>
+        <img id="export-image-result" src="">
+    </div>
+</div>
 
 <div class="container">
     <h2>
@@ -62,7 +87,7 @@
     <div class="controls">
         <input type="file" id="image-loader" accept="image/*" style="display:none;">
         <button class="btn" onclick="document.getElementById('image-loader').click()">📁 選擇照片</button>
-        <button class="btn btn-warning" onclick="copyImageToClipboard()">📤 複製/分享圖片</button>
+        <button class="btn btn-warning" onclick="openExportModal()">📤 複製/分享圖片</button>
         <button class="btn btn-primary" onclick="syncAllToBackend()" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原</button>
         <button class="btn btn-success" onclick="downloadImage()">💾 下載圖片</button>
@@ -76,8 +101,8 @@
     <div class="tip">
         <strong>📱 手機操作秘訣：</strong><br>
         1. 點擊 <b>【📁 選擇照片】</b> 從手機相簿載入圖片。<br>
-        2. 用手指把手寫紅字<b>框起來</b>，輸入代碼與價格後，標籤背景會自動延展填滿框選範圍，完美遮蓋！<br>
-        3. 點擊 <b>【📤 複製/分享圖片】</b> 可直接分享至 LINE 官方帳號對話視窗。<br>
+        2. 用手指把手寫紅字<b>框起來</b>，輸入代碼與價格後完美遮蓋！<br>
+        3. 點擊 <b>【📤 複製/分享圖片】</b> 並<b>長按圖片拷貝</b>，即可直接去 LINE 官方帳號對話視窗貼上。<br>
         4. 點擊 <b>【☁️ 確認並同步到後台】</b> 寫入雲端。
     </div>
     
@@ -266,7 +291,6 @@
 
     function handlePointerMove(e) {
         if (!img.src) return;
-        
         if (isDragging || isDrawingBox) { e.preventDefault(); }
 
         const pos = getPointerPos(e);
@@ -278,9 +302,7 @@
             redrawCanvas();
         } 
         else if (isDrawingBox) {
-            isClick = false;
-            boxCurrentX = pos.x; boxCurrentY = pos.y;
-            redrawCanvas();
+            isClick = false; boxCurrentX = pos.x; boxCurrentY = pos.y; redrawCanvas();
             
             ctx.save();
             ctx.strokeStyle = "#e53e3e"; ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
@@ -302,10 +324,8 @@
         } 
         else if (isDrawingBox) {
             isDrawingBox = false;
-            let w = Math.abs(boxCurrentX - startX);
-            let h = Math.abs(boxCurrentY - startY);
-            let cx = Math.min(startX, boxCurrentX) + w / 2;
-            let cy = Math.min(startY, boxCurrentY) + h / 2;
+            let w = Math.abs(boxCurrentX - startX); let h = Math.abs(boxCurrentY - startY);
+            let cx = Math.min(startX, boxCurrentX) + w / 2; let cy = Math.min(startY, boxCurrentY) + h / 2;
             
             if (w > 20 && h > 20) {
                 setTimeout(() => {
@@ -413,35 +433,16 @@
         else showToast(`❌ 同步失敗，請檢查網路連線。`);
     }
 
-    // 💡 解決手機複製圖片失敗的核心邏輯
-    async function copyImageToClipboard() {
+    // 💡 解決手機貼圖 100% 成功方案：彈出視窗讓使用者「長按」
+    function openExportModal() {
         if (!img.src) return alert("請先選擇照片！");
-        
-        canvas.toBlob(async function(blob) {
-            // 優先嘗試使用手機原生的分享功能 (Share API) - iOS/Android 可直接傳到 LINE
-            if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
-                try {
-                    const file = new File([blob], `標價圖_${new Date().getTime()}.png`, { type: 'image/png' });
-                    await navigator.share({
-                        title: '連線商品標價圖',
-                        files: [file]
-                    });
-                    showToast("📤 已開啟分享，請選擇 LINE 傳送！");
-                    return;
-                } catch (err) {
-                    console.log("原生分享被取消或不支援，嘗試退回剪貼簿", err);
-                }
-            }
-            
-            // 電腦版或手機退回方案：嘗試寫入剪貼簿
-            try {
-                const item = new ClipboardItem({ 'image/png': blob });
-                await navigator.clipboard.write([item]);
-                showToast("📋 圖片已複製！請至 Line 貼上");
-            } catch (err) {
-                alert("⚠️ 您的瀏覽器環境不支援直接分享，請改用綠色「下載圖片」按鈕。");
-            }
-        });
+        let resultImg = document.getElementById('export-image-result');
+        resultImg.src = canvas.toDataURL('image/png'); // 把 Canvas 轉成真正的圖片
+        document.getElementById('image-export-modal').style.display = 'flex'; // 顯示彈出視窗
+    }
+
+    function closeExportModal() {
+        document.getElementById('image-export-modal').style.display = 'none';
     }
 
     function showToast(msg) {

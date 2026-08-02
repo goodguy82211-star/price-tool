@@ -39,7 +39,6 @@
             white-space: nowrap; border-left: 5px solid #319795;
         }
 
-        /* 💡 新增：手機長按專用彈出視窗樣式 */
         #image-export-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(19, 44, 77, 0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px);
@@ -47,8 +46,12 @@
         .export-modal-content {
             background: white; padding: 25px 20px 20px 20px; border-radius: 20px; text-align: center; max-width: 90%; max-height: 90%; overflow-y: auto; position: relative;
         }
+        /* 💡 強制解除手機對這張圖片的長按封鎖 */
         .export-modal-content img {
             max-width: 100%; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 15px; border: 1px solid #dbe4f0;
+            -webkit-touch-callout: default !important;
+            user-select: auto !important;
+            pointer-events: auto !important;
         }
         .close-modal-btn {
             position: absolute; top: 12px; right: 18px; font-size: 28px; cursor: pointer; color: #a0aec0; font-weight: bold; line-height: 1; transition: 0.2s;
@@ -59,12 +62,11 @@
 
 <div id="toast">✅ 同步成功！</div>
 
-<!-- 💡 新增：手機長按專用彈出視窗 -->
 <div id="image-export-modal">
     <div class="export-modal-content">
         <span class="close-modal-btn" onclick="closeExportModal()">×</span>
         <h3 style="margin: 0; color: #132c4d; font-size: 18px;">👇 請長按下方圖片</h3>
-        <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">選擇「拷貝/複製」即可到 LINE 貼上</p>
+        <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">選擇「儲存影像」或「拷貝」，即可傳送！</p>
         <img id="export-image-result" src="">
     </div>
 </div>
@@ -73,12 +75,13 @@
     <h2>
         ⚡ 相片標價產生器
         <div class="mode-switch">
+            <!-- 💡 修改這裡：將 checked 移到點擊小標籤 -->
             <label>
-                <input type="radio" name="inputMode" value="click" onchange="changeMode(this.value)">
+                <input type="radio" name="inputMode" value="click" checked onchange="changeMode(this.value)">
                 <span>🖱️ 點擊小標籤</span>
             </label>
             <label>
-                <input type="radio" name="inputMode" value="cover" checked onchange="changeMode(this.value)">
+                <input type="radio" name="inputMode" value="cover" onchange="changeMode(this.value)">
                 <span>🔲 框選完美遮蓋</span>
             </label>
         </div>
@@ -87,7 +90,7 @@
     <div class="controls">
         <input type="file" id="image-loader" accept="image/*" style="display:none;">
         <button class="btn" onclick="document.getElementById('image-loader').click()">📁 選擇照片</button>
-        <button class="btn btn-warning" onclick="openExportModal()">📤 複製/分享圖片</button>
+        <button class="btn btn-warning" onclick="copyImageToClipboard()">📤 複製/分享圖片</button>
         <button class="btn btn-primary" onclick="syncAllToBackend()" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原</button>
         <button class="btn btn-success" onclick="downloadImage()">💾 下載圖片</button>
@@ -99,10 +102,10 @@
     </div>
     
     <div class="tip">
-        <strong>📱 手機操作秘訣：</strong><br>
-        1. 點擊 <b>【📁 選擇照片】</b> 從手機相簿載入圖片。<br>
-        2. 用手指把手寫紅字<b>框起來</b>，輸入代碼與價格後完美遮蓋！<br>
-        3. 點擊 <b>【📤 複製/分享圖片】</b> 並<b>長按圖片拷貝</b>，即可直接去 LINE 官方帳號對話視窗貼上。<br>
+        <strong>📱 成功秘訣：</strong><br>
+        1. ⚠️ <b>請務必點擊右上角「用 Safari 或 Chrome 開啟」</b>，不要在 LINE 的內建瀏覽器裡面操作！<br>
+        2. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面即可輸入代碼與價格產生標籤。<br>
+        3. 點擊 <b>【📤 複製/分享圖片】</b>，系統會直接跳出分享選項，或讓您長按圖片儲存。<br>
         4. 點擊 <b>【☁️ 確認並同步到後台】</b> 寫入雲端。
     </div>
     
@@ -121,15 +124,14 @@
     let img = new Image();
     let badgeHistory = []; 
     
-    let currentMode = 'cover'; 
+    // 💡 修改這裡：將預設模式改為 click
+    let currentMode = 'click'; 
     let isDragging = false, dragTargetIndex = -1, dragOffsetX = 0, dragOffsetY = 0;
     let isClick = true, startX = 0, startY = 0;
     let isDrawingBox = false, boxCurrentX = 0, boxCurrentY = 0;
     let lastTapTime = 0; 
 
-    function changeMode(mode) {
-        currentMode = mode;
-    }
+    function changeMode(mode) { currentMode = mode; }
 
     function calculateTWD(jpy) {
         let val = parseFloat(jpy) || 0;
@@ -171,11 +173,9 @@
         let clientY = e.clientY;
         
         if (e.touches && e.touches.length > 0) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
+            clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
         } else if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX;
-            clientY = e.changedTouches[0].clientY;
+            clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
         }
         
         return { 
@@ -208,7 +208,6 @@
     function parseAndAddBadge(input, x, y, cw = 0, ch = 0) {
         if (!input) return;
         let code = "", jpy = 0;
-        
         input = input.trim().replace(/\s+/g, ' ');
         let parts = input.split(' ');
         
@@ -216,18 +215,12 @@
             code = parts[0].toUpperCase(); 
             for (let i = parts.length - 1; i >= 1; i--) {
                 let parsed = parseInt(parts[i]);
-                if (!isNaN(parsed)) {
-                    jpy = parsed;
-                    break;
-                }
+                if (!isNaN(parsed)) { jpy = parsed; break; }
             }
-        } else { 
-            jpy = parseInt(parts[0]) || 0; 
-        }
+        } else { jpy = parseInt(parts[0]) || 0; }
 
         if (jpy <= 0) return alert("⚠️ 請輸入有效的日幣金額！");
         let twd = calculateTWD(jpy);
-        
         badgeHistory.push({ x, y, code, jpy, twd, cw, ch });
         redrawCanvas();
     }
@@ -238,7 +231,6 @@
             if (pos.x >= box.left && pos.x <= box.right && pos.y >= box.top && pos.y <= box.bottom) {
                 let b = badgeHistory[i];
                 let defaultVal = (b.code ? b.code + " " : "") + b.jpy;
-                
                 setTimeout(() => {
                     let input = prompt("✏️ 請修改【商品代碼】與【日幣價格】", defaultVal);
                     if (input) {
@@ -250,10 +242,7 @@
                                 if (!isNaN(parseInt(parts[k]))) { jpy = parseInt(parts[k]); break; }
                             }
                         } else { jpy = parseInt(parts[0]) || 0; }
-                        
-                        if (jpy > 0) {
-                            b.code = code; b.jpy = jpy; b.twd = calculateTWD(jpy); redrawCanvas();
-                        }
+                        if (jpy > 0) { b.code = code; b.jpy = jpy; b.twd = calculateTWD(jpy); redrawCanvas(); }
                     }
                 }, 50);
                 return true; 
@@ -264,7 +253,6 @@
 
     function handlePointerDown(e) {
         if (!img.src) return;
-        
         let currentTime = new Date().getTime();
         let tapLength = currentTime - lastTapTime;
         const pos = getPointerPos(e);
@@ -284,15 +272,12 @@
             }
         }
 
-        if (currentMode === 'cover') {
-            isDrawingBox = true; boxCurrentX = pos.x; boxCurrentY = pos.y;
-        }
+        if (currentMode === 'cover') { isDrawingBox = true; boxCurrentX = pos.x; boxCurrentY = pos.y; }
     }
 
     function handlePointerMove(e) {
         if (!img.src) return;
         if (isDragging || isDrawingBox) { e.preventDefault(); }
-
         const pos = getPointerPos(e);
         
         if (isDragging && dragTargetIndex !== -1) {
@@ -303,25 +288,20 @@
         } 
         else if (isDrawingBox) {
             isClick = false; boxCurrentX = pos.x; boxCurrentY = pos.y; redrawCanvas();
-            
             ctx.save();
             ctx.strokeStyle = "#e53e3e"; ctx.lineWidth = 3; ctx.setLineDash([8, 6]);
             ctx.strokeRect(startX, startY, boxCurrentX - startX, boxCurrentY - startY);
             ctx.fillStyle = "rgba(229, 62, 62, 0.2)";
             ctx.fillRect(startX, startY, boxCurrentX - startX, boxCurrentY - startY);
             ctx.restore();
-        } 
-        else {
+        } else {
             if (Math.abs(pos.x - startX) > 5 || Math.abs(pos.y - startY) > 5) isClick = false; 
         }
     }
 
     function handlePointerUp(e) {
         if (!img.src) return;
-        
-        if (isDragging) { 
-            isDragging = false; dragTargetIndex = -1; 
-        } 
+        if (isDragging) { isDragging = false; dragTargetIndex = -1; } 
         else if (isDrawingBox) {
             isDrawingBox = false;
             let w = Math.abs(boxCurrentX - startX); let h = Math.abs(boxCurrentY - startY);
@@ -433,12 +413,30 @@
         else showToast(`❌ 同步失敗，請檢查網路連線。`);
     }
 
-    // 💡 解決手機貼圖 100% 成功方案：彈出視窗讓使用者「長按」
-    function openExportModal() {
+    // 💡 全面強化的分享/複製邏輯
+    async function copyImageToClipboard() {
         if (!img.src) return alert("請先選擇照片！");
+        
+        // 1. 保底機制：先把圖片塞進彈出視窗，就算後續原生分享失敗，也能讓使用者手動長按儲存
         let resultImg = document.getElementById('export-image-result');
-        resultImg.src = canvas.toDataURL('image/png'); // 把 Canvas 轉成真正的圖片
-        document.getElementById('image-export-modal').style.display = 'flex'; // 顯示彈出視窗
+        const dataUrl = canvas.toDataURL('image/png');
+        resultImg.src = dataUrl;
+        document.getElementById('image-export-modal').style.display = 'flex';
+        
+        // 2. 嘗試呼叫手機原生分享 (直接喚醒 LINE 傳送介面)
+        if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+            try {
+                const blob = await (await fetch(dataUrl)).blob();
+                const file = new File([blob], `標價圖_${new Date().getTime()}.png`, { type: 'image/png' });
+                await navigator.share({ title: '連線商品標價圖', files: [file] });
+                
+                // 如果分享成功，就自動關閉彈出視窗
+                closeExportModal();
+                return; 
+            } catch (err) {
+                console.log("原生分享取消或失敗，啟動彈窗長按機制");
+            }
+        }
     }
 
     function closeExportModal() {
@@ -454,11 +452,19 @@
 
     function undoLastBadge() { if (badgeHistory.length > 0) { badgeHistory.pop(); redrawCanvas(); } }
     
+    // 💡 強化版的下載機制
     function downloadImage() {
         if (!img.src) return alert("請先選擇照片！");
-        let link = document.createElement('a');
-        link.download = `標價圖_${new Date().getTime()}.png`;
-        link.href = canvas.toDataURL('image/png'); link.click();
+        try {
+            let link = document.createElement('a');
+            link.download = `標價圖_${new Date().getTime()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link); // 加入這一行增加跨瀏覽器相容性
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            alert("⚠️ 下載失敗，請改用「複製/分享圖片」按鈕並長按儲存。");
+        }
     }
 </script>
 </body>

@@ -26,7 +26,6 @@
         .slider-container label { font-weight: bold; margin-right: 15px; font-size: 14px; white-space: nowrap; }
         input[type="range"] { flex: 1; cursor: pointer; accent-color: #132c4d; }
         
-        /* 避免手機觸控時產生選取反白或預設選單 */
         .canvas-container { position: relative; border: 2px dashed #c6d4e1; border-radius: 16px; overflow: hidden; background: #fafafa; text-align: center; min-height: 300px; display: flex; justify-content: center; align-items: center; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;}
         canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; cursor: crosshair; touch-action: none;}
         
@@ -63,7 +62,7 @@
     <div class="controls">
         <input type="file" id="image-loader" accept="image/*" style="display:none;">
         <button class="btn" onclick="document.getElementById('image-loader').click()">📁 選擇照片</button>
-        <button class="btn btn-warning" onclick="copyImageToClipboard()">📋 複製圖片</button>
+        <button class="btn btn-warning" onclick="copyImageToClipboard()">📤 複製/分享圖片</button>
         <button class="btn btn-primary" onclick="syncAllToBackend()" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原</button>
         <button class="btn btn-success" onclick="downloadImage()">💾 下載圖片</button>
@@ -78,7 +77,7 @@
         <strong>📱 手機操作秘訣：</strong><br>
         1. 點擊 <b>【📁 選擇照片】</b> 從手機相簿載入圖片。<br>
         2. 用手指把手寫紅字<b>框起來</b>，輸入代碼與價格後，標籤背景會自動延展填滿框選範圍，完美遮蓋！<br>
-        3. <b>雙擊 (連點兩下)</b> 標籤可以重新編輯。<br>
+        3. 點擊 <b>【📤 複製/分享圖片】</b> 可直接分享至 LINE 官方帳號對話視窗。<br>
         4. 點擊 <b>【☁️ 確認並同步到後台】</b> 寫入雲端。
     </div>
     
@@ -101,7 +100,7 @@
     let isDragging = false, dragTargetIndex = -1, dragOffsetX = 0, dragOffsetY = 0;
     let isClick = true, startX = 0, startY = 0;
     let isDrawingBox = false, boxCurrentX = 0, boxCurrentY = 0;
-    let lastTapTime = 0; // 手機雙擊判定用
+    let lastTapTime = 0; 
 
     function changeMode(mode) {
         currentMode = mode;
@@ -119,7 +118,6 @@
         if(e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
     });
 
-    // 仍保留電腦版 Ctrl+V 貼上功能
     document.addEventListener('paste', function(e) {
         let items = e.clipboardData.items;
         for (let item of items) {
@@ -142,7 +140,6 @@
         redrawCanvas();
     }
 
-    // 整合滑鼠與觸控的座標取得
     function getPointerPos(e) {
         const rect = canvas.getBoundingClientRect();
         let clientX = e.clientX;
@@ -210,7 +207,6 @@
         redrawCanvas();
     }
 
-    // 處理雙擊編輯事件
     function triggerDoubleTap(pos) {
         for (let i = badgeHistory.length - 1; i >= 0; i--) {
             let box = getBadgeHitbox(badgeHistory[i]);
@@ -218,7 +214,6 @@
                 let b = badgeHistory[i];
                 let defaultVal = (b.code ? b.code + " " : "") + b.jpy;
                 
-                // 延遲一點點跳出 Prompt，避免手機鍵盤彈出干擾畫面
                 setTimeout(() => {
                     let input = prompt("✏️ 請修改【商品代碼】與【日幣價格】", defaultVal);
                     if (input) {
@@ -236,29 +231,23 @@
                         }
                     }
                 }, 50);
-                return true; // 成功觸發編輯
+                return true; 
             }
         }
         return false;
     }
 
-    // --- 統一事件處理器 (同時支援滑鼠與觸控) ---
     function handlePointerDown(e) {
         if (!img.src) return;
         
-        // 手機雙擊判定邏輯
         let currentTime = new Date().getTime();
         let tapLength = currentTime - lastTapTime;
         const pos = getPointerPos(e);
 
         if (tapLength < 300 && tapLength > 0) {
-            if (triggerDoubleTap(pos)) {
-                e.preventDefault();
-                return;
-            }
+            if (triggerDoubleTap(pos)) { e.preventDefault(); return; }
         }
         lastTapTime = currentTime;
-
         startX = pos.x; startY = pos.y; isClick = true;
 
         for (let i = badgeHistory.length - 1; i >= 0; i--) {
@@ -278,10 +267,7 @@
     function handlePointerMove(e) {
         if (!img.src) return;
         
-        // 如果正在畫框或拖曳，禁止網頁預設的捲動行為
-        if (isDragging || isDrawingBox) {
-            e.preventDefault(); 
-        }
+        if (isDragging || isDrawingBox) { e.preventDefault(); }
 
         const pos = getPointerPos(e);
         
@@ -345,7 +331,6 @@
         }
     }
 
-    // 註冊滑鼠事件
     canvas.addEventListener('mousedown', handlePointerDown);
     canvas.addEventListener('mousemove', handlePointerMove);
     canvas.addEventListener('mouseup', handlePointerUp);
@@ -353,10 +338,8 @@
         if (isDragging) { isDragging = false; dragTargetIndex = -1; }
         if (isDrawingBox) { isDrawingBox = false; redrawCanvas(); }
     });
-    // 保留電腦版原生的雙擊
     canvas.addEventListener('dblclick', function(e) { triggerDoubleTap(getPointerPos(e)); });
 
-    // 註冊觸控事件 (設定 passive: false 才能阻止捲動)
     canvas.addEventListener('touchstart', handlePointerDown, { passive: false });
     canvas.addEventListener('touchmove', handlePointerMove, { passive: false });
     canvas.addEventListener('touchend', handlePointerUp);
@@ -364,7 +347,6 @@
         if (isDragging) { isDragging = false; dragTargetIndex = -1; }
         if (isDrawingBox) { isDrawingBox = false; redrawCanvas(); }
     });
-    // ----------------------------------------------------
 
     function redrawCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height); 
@@ -398,30 +380,22 @@
         
         let rx = x - finalBoxWidth / 2, ry = y - finalBoxHeight / 2;
         ctx.beginPath();
-        if (ctx.roundRect) { 
-            ctx.roundRect(rx, ry, finalBoxWidth, finalBoxHeight, Math.max(4, fontSize * 0.4)); 
-        } else { 
-            ctx.rect(rx, ry, finalBoxWidth, finalBoxHeight); 
-        }
+        if (ctx.roundRect) { ctx.roundRect(rx, ry, finalBoxWidth, finalBoxHeight, Math.max(4, fontSize * 0.4)); } 
+        else { ctx.rect(rx, ry, finalBoxWidth, finalBoxHeight); }
         ctx.fill();
         
         ctx.shadowBlur = 0; ctx.textAlign = "center"; ctx.textBaseline = "top";
         let textStartY = y - (fontSize + subFontSize + 2) / 2;
         
-        ctx.fillStyle = "#ffe066"; ctx.font = `bold ${fontSize}px sans-serif`; 
-        ctx.fillText(text, x, textStartY);
-        
-        ctx.fillStyle = "#cbd5e0"; ctx.font = `${subFontSize}px sans-serif`; 
-        ctx.fillText(subText, x, textStartY + fontSize + 2);
+        ctx.fillStyle = "#ffe066"; ctx.font = `bold ${fontSize}px sans-serif`; ctx.fillText(text, x, textStartY);
+        ctx.fillStyle = "#cbd5e0"; ctx.font = `${subFontSize}px sans-serif`; ctx.fillText(subText, x, textStartY + fontSize + 2);
         
         ctx.restore();
     }
 
     async function syncAllToBackend() {
         let validBadges = badgeHistory.filter(b => b.code !== "");
-        if (validBadges.length === 0) {
-            return showToast("⚠️ 目前沒有含有代碼的標籤可以同步！");
-        }
+        if (validBadges.length === 0) return showToast("⚠️ 目前沒有含有代碼的標籤可以同步！");
 
         let originalBtnText = event.target.innerText;
         event.target.innerText = "⏳ 同步中...";
@@ -429,37 +403,45 @@
 
         for (let b of validBadges) {
             try {
-                let res = await fetch(GAS_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ action: "syncPriceFromTool", productCode: b.code, newPrice: b.twd })
-                });
-                let txt = await res.text();
-                if(txt === "success") successCount++;
-            } catch (err) {
-                console.error("同步失敗:", err);
-            }
+                let res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ action: "syncPriceFromTool", productCode: b.code, newPrice: b.twd }) });
+                if(await res.text() === "success") successCount++;
+            } catch (err) {}
         }
         
         event.target.innerText = originalBtnText;
-
-        if(successCount > 0) {
-            showToast(`✅ 同步完成！共更新 ${successCount} 筆商品資料。`);
-        } else {
-            showToast(`❌ 同步失敗，請檢查網路連線。`);
-        }
+        if(successCount > 0) showToast(`✅ 同步完成！共更新 ${successCount} 筆商品資料。`);
+        else showToast(`❌ 同步失敗，請檢查網路連線。`);
     }
 
+    // 💡 解決手機複製圖片失敗的核心邏輯
     async function copyImageToClipboard() {
         if (!img.src) return alert("請先選擇照片！");
-        try {
-            canvas.toBlob(async function(blob) {
+        
+        canvas.toBlob(async function(blob) {
+            // 優先嘗試使用手機原生的分享功能 (Share API) - iOS/Android 可直接傳到 LINE
+            if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+                try {
+                    const file = new File([blob], `標價圖_${new Date().getTime()}.png`, { type: 'image/png' });
+                    await navigator.share({
+                        title: '連線商品標價圖',
+                        files: [file]
+                    });
+                    showToast("📤 已開啟分享，請選擇 LINE 傳送！");
+                    return;
+                } catch (err) {
+                    console.log("原生分享被取消或不支援，嘗試退回剪貼簿", err);
+                }
+            }
+            
+            // 電腦版或手機退回方案：嘗試寫入剪貼簿
+            try {
                 const item = new ClipboardItem({ 'image/png': blob });
                 await navigator.clipboard.write([item]);
-                showToast("📋 圖片已複製！");
-            });
-        } catch (err) {
-            alert("⚠️ 您的手機瀏覽器不支援直接複製，請改用「下載圖片」按鈕。");
-        }
+                showToast("📋 圖片已複製！請至 Line 貼上");
+            } catch (err) {
+                alert("⚠️ 您的瀏覽器環境不支援直接分享，請改用綠色「下載圖片」按鈕。");
+            }
+        });
     }
 
     function showToast(msg) {

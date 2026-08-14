@@ -24,7 +24,7 @@
         .btn-primary { background: #3182ce; }
         .btn-warning { background: #d69e2e; }
         .btn-secondary { background: #718096; }
-        .btn-camera { background: #d53f8c; } /* 直播用顯眼拍照按鈕顏色 */
+        .btn-camera { background: #d53f8c; }
         
         .slider-container { display: flex; align-items: center; background: #eef3f8; padding: 12px 15px; border-radius: 12px; border: 1px solid #c6d4e1; margin-bottom: 15px; }
         .slider-container label { font-weight: bold; margin-right: 15px; font-size: 14px; white-space: nowrap; }
@@ -135,11 +135,9 @@
     </h2>
     
     <div class="controls">
-        <!-- 💡 拆分：選擇照片 與 立即拍照 獨立分開 -->
         <input type="file" id="image-loader" accept="image/*" style="display:none;">
         <button class="btn" onclick="document.getElementById('image-loader').click()">📁 相簿/檔案</button>
 
-        <!-- 📸 新增：利用 capture="environment" 強制開啟後置鏡頭 -->
         <input type="file" id="camera-loader" accept="image/*" capture="environment" style="display:none;">
         <button class="btn btn-camera" onclick="document.getElementById('camera-loader').click()">📷 立即拍照</button>
 
@@ -193,7 +191,7 @@
         { limit: 2000, rate: 0.27 },
         { limit: 5000, rate: 0.25 },
         { limit: 10000, rate: 0.24 },
-        { limit: Infinity, rate: 0.23 } // 第5區間，超過區間4時預設使用
+        { limit: Infinity, rate: 0.23 } 
     ];
 
     function toggleSettings() {
@@ -202,7 +200,6 @@
     }
 
     function updateRates() {
-        // 從 UI 抓取設定值並更新
         exchangeRates[0].limit = parseFloat(document.getElementById('r1-lim').value) || 1000;
         exchangeRates[0].rate = parseFloat(document.getElementById('r1-rate').value) || 0.3;
         exchangeRates[1].limit = parseFloat(document.getElementById('r2-lim').value) || 2000;
@@ -213,21 +210,20 @@
         exchangeRates[3].rate = parseFloat(document.getElementById('r4-rate').value) || 0.24;
         exchangeRates[4].rate = parseFloat(document.getElementById('r5-rate').value) || 0.23;
 
-        // 重新計算畫面上所有現存標籤的台幣價格
         badgeHistory.forEach(b => {
             b.twd = calculateTWD(b.jpy);
         });
         
         redrawCanvas();
         showToast("✅ 匯率設定已儲存並套用！");
-        toggleSettings(); // 關閉面板
+        toggleSettings();
     }
 
     function changeMode(mode) { currentMode = mode; }
 
     function calculateTWD(jpy) {
         let val = parseFloat(jpy) || 0;
-        let rate = exchangeRates[4].rate; // 預設使用最後一階
+        let rate = exchangeRates[4].rate;
         
         for (let i = 0; i < 4; i++) {
             if (val <= exchangeRates[i].limit) {
@@ -238,7 +234,6 @@
         return Math.ceil((val * rate) / 10) * 10;
     }
 
-    // 💡 統整：相簿與相機共用同一個讀取函數
     function handleImageFile(e) {
         let reader = new FileReader();
         reader.onload = function(event) { 
@@ -248,11 +243,9 @@
         if(e.target.files[0]) {
             reader.readAsDataURL(e.target.files[0]);
         }
-        // 清除 input 的值，這樣連續點兩次相同按鈕(或重新拍照)仍會觸發載入
         e.target.value = '';
     }
 
-    // 💡 綁定事件：不管是相簿還是相機，只要選定/拍完照就會交由 handleImageFile 處理
     document.getElementById('image-loader').addEventListener('change', handleImageFile);
     document.getElementById('camera-loader').addEventListener('change', handleImageFile);
 
@@ -270,8 +263,19 @@
     });
 
     function initCanvas() {
-        canvas.width = img.width;
-        canvas.height = img.height;
+        // 💡 新增：動態壓縮照片解析度至最大 1440 像素，讓上傳至 Line 更順暢不超過 4MB
+        const MAX_DIMENSION = 1440;
+        let finalWidth = img.width;
+        let finalHeight = img.height;
+
+        if (finalWidth > MAX_DIMENSION || finalHeight > MAX_DIMENSION) {
+            const ratio = Math.min(MAX_DIMENSION / finalWidth, MAX_DIMENSION / finalHeight);
+            finalWidth = Math.round(finalWidth * ratio);
+            finalHeight = Math.round(finalHeight * ratio);
+        }
+
+        canvas.width = finalWidth;
+        canvas.height = finalHeight;
         document.getElementById('placeholder-text').style.display = 'none';
         canvas.style.display = 'block';
         badgeHistory = [];
@@ -295,20 +299,24 @@
         };
     }
 
+    // 💡 調整：與新版牛皮紙標籤的排版邊距同步運算 Hitbox 大小
     function getBadgeHitbox(b) {
         let text = b.code ? `${b.code} NT$${b.twd}` : `NT$${b.twd}`;
         let subText = `(¥${b.jpy})`;
         let sf = document.getElementById('size-slider').value;
-        let fontSize = Math.max(8, Math.round((canvas.width / 1000) * sf));
+        let fontSize = Math.max(14, Math.round((canvas.width / 1000) * sf * 1.5));
         let subFontSize = Math.round(fontSize * 0.75);
-        ctx.font = `bold ${fontSize}px sans-serif`;
+        let fontStack = "'Comic Sans MS', 'Chalkboard SE', 'Fredoka One', 'Marker Felt', sans-serif";
+        
+        ctx.font = `bold ${fontSize}px ${fontStack}`;
         let textWidth = ctx.measureText(text).width;
-        ctx.font = `${subFontSize}px sans-serif`;
+        ctx.font = `bold ${subFontSize}px ${fontStack}`;
         let subWidth = ctx.measureText(subText).width;
         
-        let paddingX = Math.max(10, fontSize * 0.8), paddingY = Math.max(8, fontSize * 0.6);
-        let contentWidth = Math.max(textWidth, subWidth) + paddingX * 2;
-        let contentHeight = fontSize + subFontSize + paddingY * 2;
+        let paddingX = fontSize * 1.5;
+        let paddingY = fontSize * 1.0;
+        let contentWidth = Math.max(textWidth, subWidth) + paddingX * 2.2;
+        let contentHeight = fontSize + subFontSize + paddingY * 1.8;
         
         let finalBoxWidth = Math.max(contentWidth, b.cw || 0);
         let finalBoxHeight = Math.max(contentHeight, b.ch || 0);
@@ -461,46 +469,171 @@
 
     function redrawCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height); 
-        ctx.drawImage(img, 0, 0);
+        // 確保重畫時填滿壓縮後的畫布尺寸
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height); 
         badgeHistory.forEach(b => { drawPriceBadge(b.x, b.y, b.code, b.jpy, b.twd, b.cw, b.ch); });
     }
 
+    // 繪製愛心路徑
+    function drawHeart(ctx, x, y, size, rotationDeg = 0) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rotationDeg * Math.PI / 180);
+        ctx.scale(size/100, size/100);
+        ctx.beginPath();
+        ctx.moveTo(50, 30);
+        ctx.bezierCurveTo(50, -10, 0, -10, 0, 30);
+        ctx.bezierCurveTo(0, 60, 50, 85, 50, 100);
+        ctx.bezierCurveTo(50, 85, 100, 60, 100, 30);
+        ctx.bezierCurveTo(100, -10, 50, -10, 50, 30);
+        ctx.fillStyle = "#b73229"; // 紅色
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // 繪製狗掌路徑
+    function drawPaw(ctx, x, y, size, rotationDeg = 0) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rotationDeg * Math.PI / 180);
+        ctx.scale(size/100, size/100);
+        ctx.fillStyle = "#5c4033"; // 棕色
+        // 主掌印
+        ctx.beginPath(); ctx.ellipse(50, 70, 22, 18, 0, 0, Math.PI*2); ctx.fill();
+        // 腳趾
+        ctx.beginPath(); ctx.ellipse(25, 45, 10, 14, -Math.PI/6, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(40, 25, 10, 14, -Math.PI/12, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(60, 25, 10, 14, Math.PI/12, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(75, 45, 10, 14, Math.PI/6, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+
+    // 💡 調整：全新牛皮紙不規則質感標籤繪製
     function drawPriceBadge(x, y, code, jpy, twd, cw = 0, ch = 0) {
         ctx.save();
         let text = code ? `${code} NT$${twd}` : `NT$${twd}`;
         let subText = `(¥${jpy})`;
         let sf = document.getElementById('size-slider').value;
-        let fontSize = Math.max(8, Math.round((canvas.width / 1000) * sf));
+        let fontSize = Math.max(14, Math.round((canvas.width / 1000) * sf * 1.5));
         let subFontSize = Math.round(fontSize * 0.75);
+        let fontStack = "'Comic Sans MS', 'Chalkboard SE', 'Fredoka One', 'Marker Felt', sans-serif";
         
-        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.font = `bold ${fontSize}px ${fontStack}`;
         let textWidth = ctx.measureText(text).width;
-        ctx.font = `${subFontSize}px sans-serif`;
+        ctx.font = `bold ${subFontSize}px ${fontStack}`;
         let subWidth = ctx.measureText(subText).width;
         
-        let paddingX = Math.max(10, fontSize * 0.8), paddingY = Math.max(8, fontSize * 0.6);
-        let contentWidth = Math.max(textWidth, subWidth) + paddingX * 2;
-        let contentHeight = fontSize + subFontSize + paddingY * 2;
+        let paddingX = fontSize * 1.5; 
+        let paddingY = fontSize * 1.0;
+        let contentWidth = Math.max(textWidth, subWidth) + paddingX * 2.2; 
+        let contentHeight = fontSize + subFontSize + paddingY * 1.8;
         
         let finalBoxWidth = Math.max(contentWidth, cw);
         let finalBoxHeight = Math.max(contentHeight, ch);
         
-        ctx.fillStyle = "rgba(19, 44, 77, 0.95)"; 
-        ctx.shadowColor = "rgba(0, 0, 0, 0.4)"; 
-        ctx.shadowBlur = fontSize * 0.5;
-        
-        let rx = x - finalBoxWidth / 2, ry = y - finalBoxHeight / 2;
+        let left = x - finalBoxWidth / 2;
+        let top = y - finalBoxHeight / 2;
+
+        let holeX = left + finalBoxWidth - fontSize * 1.2;
+        let holeY = top + finalBoxHeight / 2;
+        let eyeletRadius = fontSize * 0.35;
+
+        // 1. 繪製麻繩
         ctx.beginPath();
-        if (ctx.roundRect) { ctx.roundRect(rx, ry, finalBoxWidth, finalBoxHeight, Math.max(4, fontSize * 0.4)); } 
-        else { ctx.rect(rx, ry, finalBoxWidth, finalBoxHeight); }
+        ctx.moveTo(holeX, holeY - eyeletRadius);
+        ctx.bezierCurveTo(holeX + fontSize*3, holeY - fontSize*1.5, holeX + fontSize*4, holeY + fontSize*0.5, holeX, holeY + eyeletRadius);
+        ctx.lineWidth = Math.max(3, fontSize * 0.2);
+        ctx.strokeStyle = "#c0a887"; 
+        ctx.stroke();
+        // 繩子紋路
+        ctx.beginPath();
+        ctx.moveTo(holeX, holeY - eyeletRadius);
+        ctx.bezierCurveTo(holeX + fontSize*3, holeY - fontSize*1.5, holeX + fontSize*4, holeY + fontSize*0.5, holeX, holeY + eyeletRadius);
+        ctx.lineWidth = Math.max(3, fontSize * 0.2);
+        ctx.strokeStyle = "#7a5c40"; 
+        ctx.setLineDash([fontSize * 0.3, fontSize * 0.3]);
+        ctx.stroke();
+        ctx.setLineDash([]); 
+
+        // 2. 繪製撕裂邊緣牛皮紙背景
+        ctx.shadowColor = "rgba(0, 0, 0, 0.4)"; 
+        ctx.shadowBlur = fontSize * 0.4;
+        ctx.shadowOffsetY = fontSize * 0.2;
+        ctx.fillStyle = "#d3b38c"; // 牛皮紙顏色
+
+        ctx.beginPath();
+        let sX = finalBoxWidth / 8;
+        let sY = finalBoxHeight / 5;
+        let v = fontSize * 0.1; 
+        
+        ctx.moveTo(left, top);
+        ctx.lineTo(left + sX*1, top + v); ctx.lineTo(left + sX*2, top - v);
+        ctx.lineTo(left + sX*3, top + v); ctx.lineTo(left + sX*4, top - v);
+        ctx.lineTo(left + sX*5, top + v); ctx.lineTo(left + sX*6, top - v);
+        ctx.lineTo(left + sX*7, top + v); ctx.lineTo(left + finalBoxWidth, top);
+        
+        ctx.lineTo(left + finalBoxWidth - v, top + sY*1); ctx.lineTo(left + finalBoxWidth + v, top + sY*2);
+        ctx.lineTo(left + finalBoxWidth - v, top + sY*3); ctx.lineTo(left + finalBoxWidth + v, top + sY*4);
+        ctx.lineTo(left + finalBoxWidth, top + finalBoxHeight);
+        
+        ctx.lineTo(left + sX*7, top + finalBoxHeight - v); ctx.lineTo(left + sX*6, top + finalBoxHeight + v);
+        ctx.lineTo(left + sX*5, top + finalBoxHeight - v); ctx.lineTo(left + sX*4, top + finalBoxHeight + v);
+        ctx.lineTo(left + sX*3, top + finalBoxHeight - v); ctx.lineTo(left + sX*2, top + finalBoxHeight + v);
+        ctx.lineTo(left + sX*1, top + finalBoxHeight - v); ctx.lineTo(left, top + finalBoxHeight);
+        
+        ctx.lineTo(left + v, top + sY*4); ctx.lineTo(left - v, top + sY*3);
+        ctx.lineTo(left + v, top + sY*2); ctx.lineTo(left - v, top + sY*1);
+        ctx.closePath();
         ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = "rgba(92, 64, 51, 0.2)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 3. 繪製金屬扣環孔洞
+        ctx.beginPath();
+        ctx.arc(holeX, holeY, eyeletRadius * 1.6, 0, Math.PI * 2);
+        ctx.fillStyle = "#c2a478";
+        ctx.fill();
+        ctx.lineWidth = Math.max(1, fontSize * 0.05);
+        ctx.strokeStyle = "#8b7152";
+        ctx.stroke();
         
-        ctx.shadowBlur = 0; ctx.textAlign = "center"; ctx.textBaseline = "top";
-        let textStartY = y - (fontSize + subFontSize + 2) / 2;
+        // 剪裁出中空的孔洞顯示底層照片
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(holeX, holeY, eyeletRadius, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
         
-        ctx.fillStyle = "#ffe066"; ctx.font = `bold ${fontSize}px sans-serif`; ctx.fillText(text, x, textStartY);
-        ctx.fillStyle = "#cbd5e0"; ctx.font = `${subFontSize}px sans-serif`; ctx.fillText(subText, x, textStartY + fontSize + 2);
+        ctx.beginPath();
+        ctx.arc(holeX, holeY, eyeletRadius, 0, Math.PI * 2);
+        ctx.lineWidth = Math.max(1, fontSize * 0.1);
+        ctx.strokeStyle = "rgba(0,0,0,0.3)";
+        ctx.stroke();
+
+        // 4. 繪製圖案點綴
+        drawHeart(ctx, holeX - fontSize * 1.3, holeY - fontSize * 0.3, fontSize * 0.35, -15);
+        drawPaw(ctx, holeX - fontSize * 0.9, holeY + fontSize * 0.6, fontSize * 0.5, -20);
+        drawPaw(ctx, holeX - fontSize * 0.2, holeY + fontSize * 0.9, fontSize * 0.4, 15);
+
+        // 5. 繪製字體
+        let textStartX = left + (finalBoxWidth - fontSize * 2) / 2;
+        let textStartY = top + paddingY * 1.1;
         
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#462e1b"; // 深棕色墨水
+        
+        ctx.font = `bold ${fontSize}px ${fontStack}`;
+        ctx.fillText(text, textStartX, textStartY);
+        
+        ctx.font = `bold ${subFontSize}px ${fontStack}`;
+        ctx.fillText(subText, textStartX, textStartY + fontSize * 1.2);
+
         ctx.restore();
     }
 
@@ -510,7 +643,7 @@
 
         let originalBtnText = btn.innerText;
         btn.innerText = "⏳ 同步中...";
-        btn.disabled = true; // 鎖定按鈕防止連點
+        btn.disabled = true; 
         let successCount = 0;
 
         try {
@@ -529,7 +662,6 @@
             if(successCount > 0) showToast(`✅ 同步完成！共更新 ${successCount} 筆商品資料。`);
             else showToast(`❌ 同步失敗，請檢查網路連線。`);
         } finally {
-            // 無論成功、失敗或斷線，100% 保證按鈕恢復原狀
             btn.innerText = originalBtnText;
             btn.disabled = false;
         }
@@ -539,14 +671,15 @@
         if (!img.src) return alert("請先選擇照片！");
         
         let resultImg = document.getElementById('export-image-result');
-        const dataUrl = canvas.toDataURL('image/png');
+        // 💡 調整：統一將圖片匯出更改為 JPEG 格式與 85% 畫質，解決容量暴增問題
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85); 
         resultImg.src = dataUrl;
         document.getElementById('image-export-modal').style.display = 'flex';
         
         if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
             try {
                 fetch(dataUrl).then(res => res.blob()).then(blob => {
-                    const file = new File([blob], `標價圖_${new Date().getTime()}.png`, { type: 'image/png' });
+                    const file = new File([blob], `標價圖_${new Date().getTime()}.jpg`, { type: 'image/jpeg' });
                     navigator.share({ title: '連線商品標價圖', files: [file] });
                     closeExportModal();
                 });
@@ -572,8 +705,8 @@
         if (!img.src) return alert("請先選擇照片！");
         try {
             let link = document.createElement('a');
-            link.download = `標價圖_${new Date().getTime()}.png`;
-            link.href = canvas.toDataURL('image/png');
+            link.download = `標價圖_${new Date().getTime()}.jpg`; 
+            link.href = canvas.toDataURL('image/jpeg', 0.85); 
             document.body.appendChild(link); 
             link.click();
             document.body.removeChild(link);

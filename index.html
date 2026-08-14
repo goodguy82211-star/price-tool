@@ -24,6 +24,7 @@
         .btn-primary { background: #3182ce; }
         .btn-warning { background: #d69e2e; }
         .btn-secondary { background: #718096; }
+        .btn-camera { background: #d53f8c; } /* 直播用顯眼拍照按鈕顏色 */
         
         .slider-container { display: flex; align-items: center; background: #eef3f8; padding: 12px 15px; border-radius: 12px; border: 1px solid #c6d4e1; margin-bottom: 15px; }
         .slider-container label { font-weight: bold; margin-right: 15px; font-size: 14px; white-space: nowrap; }
@@ -134,12 +135,19 @@
     </h2>
     
     <div class="controls">
+        <!-- 💡 拆分：選擇照片 與 立即拍照 獨立分開 -->
         <input type="file" id="image-loader" accept="image/*" style="display:none;">
-        <button class="btn" onclick="document.getElementById('image-loader').click()">📁 選擇照片</button>
+        <button class="btn" onclick="document.getElementById('image-loader').click()">📁 相簿/檔案</button>
+
+        <!-- 📸 新增：利用 capture="environment" 強制開啟後置鏡頭 -->
+        <input type="file" id="camera-loader" accept="image/*" capture="environment" style="display:none;">
+        <button class="btn btn-camera" onclick="document.getElementById('camera-loader').click()">📷 立即拍照</button>
+
         <button class="btn btn-secondary" onclick="toggleSettings()">⚙️ 匯率設定</button>
         <button class="btn btn-warning" onclick="copyImageToClipboard()">📤 複製/分享圖片</button>
-        <!-- 💡 修正這裡：傳入 this 來綁定按鈕本身 -->
+        
         <button class="btn btn-primary" onclick="syncAllToBackend(this)" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
+        
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原</button>
         <button class="btn btn-success" onclick="downloadImage()">💾 下載圖片</button>
     </div>
@@ -151,15 +159,15 @@
     
     <div class="tip">
         <strong>📱 成功秘訣：</strong><br>
-        1. ⚠️ <b>請務必點擊右上角「用 Safari 或 Chrome 開啟」</b>，不要在 LINE 內建瀏覽器操作！<br>
-        2. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面即可輸入代碼與價格產生標籤。<br>
-        3. 點選 <b>【⚙️ 匯率設定】</b> 可自訂 5 個價格區間與對應乘數。<br>
-        4. 點擊 <b>【📤 複製/分享圖片】</b>，系統會跳出分享選項，或讓您長按圖片儲存。<br>
+        1. 直播時請點擊 <b>【📷 立即拍照】</b>，手機將直接開啟相機，拍完自動載入！<br>
+        2. ⚠️ <b>請務必點擊右上角「用 Safari 或 Chrome 開啟」</b>，不要在 LINE 內建瀏覽器操作！<br>
+        3. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面即可輸入代碼與價格產生標籤。<br>
+        4. 點選 <b>【⚙️ 匯率設定】</b> 可自訂 5 個價格區間與對應乘數。<br>
         5. 點擊 <b>【☁️ 確認並同步到後台】</b> 寫入雲端。
     </div>
     
     <div class="canvas-container" id="canvas-box">
-        <p id="placeholder-text" style="color: #a0aec0; font-weight: bold; font-size: 16px;">請點選上方「選擇照片」載入</p>
+        <p id="placeholder-text" style="color: #a0aec0; font-weight: bold; font-size: 16px;">請點選上方「載入/拍照」</p>
         <canvas id="photo-canvas" style="display:none;"></canvas>
     </div>
 </div>
@@ -230,11 +238,23 @@
         return Math.ceil((val * rate) / 10) * 10;
     }
 
-    document.getElementById('image-loader').addEventListener('change', function(e) {
+    // 💡 統整：相簿與相機共用同一個讀取函數
+    function handleImageFile(e) {
         let reader = new FileReader();
-        reader.onload = function(event) { img.onload = function() { initCanvas(); }; img.src = event.target.result; }
-        if(e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
-    });
+        reader.onload = function(event) { 
+            img.onload = function() { initCanvas(); }; 
+            img.src = event.target.result; 
+        }
+        if(e.target.files[0]) {
+            reader.readAsDataURL(e.target.files[0]);
+        }
+        // 清除 input 的值，這樣連續點兩次相同按鈕(或重新拍照)仍會觸發載入
+        e.target.value = '';
+    }
+
+    // 💡 綁定事件：不管是相簿還是相機，只要選定/拍完照就會交由 handleImageFile 處理
+    document.getElementById('image-loader').addEventListener('change', handleImageFile);
+    document.getElementById('camera-loader').addEventListener('change', handleImageFile);
 
     document.addEventListener('paste', function(e) {
         let items = e.clipboardData.items;

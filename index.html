@@ -263,7 +263,7 @@
     });
 
     function initCanvas() {
-        // 💡 新增：動態壓縮照片解析度至最大 1440 像素，讓上傳至 Line 更順暢不超過 4MB
+        // 💡 動態壓縮照片解析度至最大 1440 像素，讓上傳至 Line 更順暢不超過 4MB
         const MAX_DIMENSION = 1440;
         let finalWidth = img.width;
         let finalHeight = img.height;
@@ -299,7 +299,7 @@
         };
     }
 
-    // 💡 調整：與新版牛皮紙標籤的排版邊距同步運算 Hitbox 大小
+    // 💡 與新版牛皮紙標籤的排版邊距同步運算 Hitbox 大小
     function getBadgeHitbox(b) {
         let text = b.code ? `${b.code} NT$${b.twd}` : `NT$${b.twd}`;
         let subText = `(¥${b.jpy})`;
@@ -469,7 +469,6 @@
 
     function redrawCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height); 
-        // 確保重畫時填滿壓縮後的畫布尺寸
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height); 
         badgeHistory.forEach(b => { drawPriceBadge(b.x, b.y, b.code, b.jpy, b.twd, b.cw, b.ch); });
     }
@@ -508,7 +507,7 @@
         ctx.restore();
     }
 
-    // 💡 調整：全新牛皮紙不規則質感標籤繪製
+    // 💡 調整：修正文字置中與牛皮紙不規則質感標籤繪製
     function drawPriceBadge(x, y, code, jpy, twd, cw = 0, ch = 0) {
         ctx.save();
         let text = code ? `${code} NT$${twd}` : `NT$${twd}`;
@@ -620,8 +619,8 @@
         drawPaw(ctx, holeX - fontSize * 0.9, holeY + fontSize * 0.6, fontSize * 0.5, -20);
         drawPaw(ctx, holeX - fontSize * 0.2, holeY + fontSize * 0.9, fontSize * 0.4, 15);
 
-        // 5. 繪製字體
-        let textStartX = left + (finalBoxWidth - fontSize * 2) / 2;
+        // 5. 繪製字體 (已修正置中邏輯)
+        let textStartX = left + (finalBoxWidth - fontSize * 1.2) / 2;
         let textStartY = top + paddingY * 1.1;
         
         ctx.textAlign = "center";
@@ -670,11 +669,7 @@
     function copyImageToClipboard() {
         if (!img.src) return alert("請先選擇照片！");
         
-        let resultImg = document.getElementById('export-image-result');
-        // 💡 調整：統一將圖片匯出更改為 JPEG 格式與 85% 畫質，解決容量暴增問題
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85); 
-        resultImg.src = dataUrl;
-        document.getElementById('image-export-modal').style.display = 'flex';
         
         if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
             try {
@@ -686,6 +681,10 @@
                 return; 
             } catch (err) {}
         }
+        
+        let resultImg = document.getElementById('export-image-result');
+        resultImg.src = dataUrl;
+        document.getElementById('image-export-modal').style.display = 'flex';
     }
 
     function closeExportModal() {
@@ -701,17 +700,42 @@
 
     function undoLastBadge() { if (badgeHistory.length > 0) { badgeHistory.pop(); redrawCanvas(); } }
     
+    // 💡 調整：為手機端新增可靠的下載/儲存機制
     function downloadImage() {
         if (!img.src) return alert("請先選擇照片！");
-        try {
-            let link = document.createElement('a');
-            link.download = `標價圖_${new Date().getTime()}.jpg`; 
-            link.href = canvas.toDataURL('image/jpeg', 0.85); 
-            document.body.appendChild(link); 
-            link.click();
-            document.body.removeChild(link);
-        } catch (err) {
-            alert("⚠️ 下載失敗，請改用「複製/分享圖片」按鈕並長按儲存。");
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+        
+        if (isMobile && navigator.share) {
+            // 手機端優先嘗試喚起原生分享選單 (包含儲存影像選項)
+            fetch(dataUrl).then(res => res.blob()).then(blob => {
+                const file = new File([blob], `標價圖_${new Date().getTime()}.jpg`, { type: 'image/jpeg' });
+                navigator.share({ title: '儲存標價圖', files: [file] }).catch(() => {
+                    // 若取消或失敗，備案：彈出視窗讓用戶長按儲存
+                    let resultImg = document.getElementById('export-image-result');
+                    resultImg.src = dataUrl;
+                    document.getElementById('image-export-modal').style.display = 'flex';
+                });
+            }).catch(() => {
+                let resultImg = document.getElementById('export-image-result');
+                resultImg.src = dataUrl;
+                document.getElementById('image-export-modal').style.display = 'flex';
+            });
+        } else {
+            // 電腦端直接觸發下載
+            try {
+                let link = document.createElement('a');
+                link.download = `標價圖_${new Date().getTime()}.jpg`; 
+                link.href = dataUrl; 
+                document.body.appendChild(link); 
+                link.click();
+                document.body.removeChild(link);
+            } catch (err) {
+                let resultImg = document.getElementById('export-image-result');
+                resultImg.src = dataUrl;
+                document.getElementById('image-export-modal').style.display = 'flex';
+            }
         }
     }
 </script>

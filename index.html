@@ -161,7 +161,7 @@
         2. ⚠️ <b>請務必點擊右上角「用 Safari 或 Chrome 開啟」</b>，不要在 LINE 內建瀏覽器操作！<br>
         3. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面即可輸入代碼與價格產生標籤。<br>
         4. 點選 <b>【⚙️ 匯率設定】</b> 可自訂 5 個價格區間與對應乘數。<br>
-        5. 點擊 <b>【☁️ 確認並同步到後台】</b> 寫入雲端。
+        5. 點擊 <b>【☁️ 確認並同步到後台】</b> 將價格與照片寫入雲端並歸入連線區。
     </div>
     
     <div class="canvas-container" id="canvas-box">
@@ -173,6 +173,8 @@
 <script>
     // ⚠️ 確保這裡是您最新的 GAS 網址
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxjeKY2LuG_z2NxPdYsnGf8OF8JIy6LqxpHuYTd-rjVZ8Wj5spuU07N8UsZzoCeWbuE/exec";
+    // ⭐ 主網站用的 ImgBB API Key
+    const IMGBB_API_KEY = "047c09f72967af944b7686625c1c9680";
 
     const canvas = document.getElementById('photo-canvas');
     const ctx = canvas.getContext('2d');
@@ -636,21 +638,54 @@
         ctx.restore();
     }
 
+    // ⭐ 修改點：在同步給 GAS 前，先將 Canvas 轉成圖檔並自動上傳至 ImgBB
     async function syncAllToBackend(btn) {
         let validBadges = badgeHistory.filter(b => b.code !== "");
         if (validBadges.length === 0) return showToast("⚠️ 目前沒有含有代碼的標籤可以同步！");
 
         let originalBtnText = btn.innerText;
-        btn.innerText = "⏳ 同步中...";
+        btn.innerText = "⏳ 上傳照片中...";
         btn.disabled = true; 
         let successCount = 0;
+        let imgUrl = "";
 
         try {
+            // 1️⃣ 先將 Canvas 照片上傳到圖床
+            try {
+                // 取得 Base64 格式的圖片字串
+                let base64Image = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+                let formData = new FormData();
+                formData.append("image", base64Image);
+                
+                let imgbbRes = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_API_KEY, {
+                    method: "POST",
+                    body: formData
+                });
+                let imgbbData = await imgbbRes.json();
+                if (imgbbData.success) {
+                    imgUrl = imgbbData.data.url; // 取得上傳後的照片網址
+                } else {
+                    console.error("照片上傳 ImgBB 失敗:", imgbbData);
+                }
+            } catch(e) {
+                console.error("照片上傳例外錯誤:", e);
+                // 即使照片上傳失敗，仍讓價格繼續同步
+                showToast("⚠️ 照片上傳失敗，將僅同步價格");
+            }
+
+            btn.innerText = "⏳ 寫入雲端中...";
+
+            // 2️⃣ 將價格連同照片網址，傳送給 GAS 儲存
             for (let b of validBadges) {
                 try {
                     let res = await fetch(GAS_URL, { 
                         method: "POST", 
-                        body: JSON.stringify({ action: "syncPriceFromTool", productCode: b.code, newPrice: b.twd }) 
+                        body: JSON.stringify({ 
+                            action: "syncPriceFromTool", 
+                            productCode: b.code, 
+                            newPrice: b.twd,
+                            imgUrl: imgUrl // ⭐ 將照片網址帶入
+                        }) 
                     });
                     if(await res.text() === "success") successCount++;
                 } catch (err) {
@@ -658,7 +693,7 @@
                 }
             }
             
-            if(successCount > 0) showToast(`✅ 同步完成！共更新 ${successCount} 筆商品資料。`);
+            if(successCount > 0) showToast(`✅ 同步完成！照片與 ${successCount} 筆商品已更新。`);
             else showToast(`❌ 同步失敗，請檢查網路連線。`);
         } finally {
             btn.innerText = originalBtnText;
@@ -700,7 +735,6 @@
 
     function undoLastBadge() { if (badgeHistory.length > 0) { badgeHistory.pop(); redrawCanvas(); } }
     
-    // 💡 調整：為手機端新增可靠的下載/儲存機制
     function downloadImage() {
         if (!img.src) return alert("請先選擇照片！");
         

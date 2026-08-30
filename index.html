@@ -158,10 +158,9 @@
     <div class="tip">
         <strong>📱 成功秘訣：</strong><br>
         1. 直播時請點擊 <b>【📷 立即拍照】</b>，手機將直接開啟相機，拍完自動載入！<br>
-        2. ⚠️ <b>請務必點擊右上角「用 Safari 或 Chrome 開啟」</b>，不要在 LINE 內建瀏覽器操作！<br>
-        3. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面即可輸入代碼與價格產生標籤。<br>
-        4. 點選 <b>【⚙️ 匯率設定】</b> 可自訂 5 個價格區間與對應乘數。<br>
-        5. 點擊 <b>【☁️ 確認並同步到後台】</b> 將價格與照片寫入雲端並歸入連線區。
+        2. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面後只需輸入「日幣」，系統會<b>自動配發並補齊空缺代碼 (如 A001)</b>！<br>
+        3. 點選 <b>【⚙️ 匯率設定】</b> 可自訂 5 個價格區間與對應乘數。<br>
+        4. 點擊 <b>【☁️ 確認並同步到後台】</b> 將價格與照片寫入雲端並歸入連線區。
     </div>
     
     <div class="canvas-container" id="canvas-box">
@@ -173,7 +172,6 @@
 <script>
     // ⚠️ 確保這裡是您最新的 GAS 網址
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxjeKY2LuG_z2NxPdYsnGf8OF8JIy6LqxpHuYTd-rjVZ8Wj5spuU07N8UsZzoCeWbuE/exec";
-    // ⭐ 主網站用的 ImgBB API Key
     const IMGBB_API_KEY = "047c09f72967af944b7686625c1c9680";
 
     const canvas = document.getElementById('photo-canvas');
@@ -187,6 +185,9 @@
     let isDrawingBox = false, boxCurrentX = 0, boxCurrentY = 0;
     let lastTapTime = 0; 
 
+    // ⭐ 全域變數：儲存雲端已經使用過的代碼，供自動配發運算使用
+    let usedCodes = new Set();
+
     // 初始化 5 個匯率區間與倍率
     let exchangeRates = [
         { limit: 1000, rate: 0.30 },
@@ -195,6 +196,43 @@
         { limit: 10000, rate: 0.24 },
         { limit: Infinity, rate: 0.23 } 
     ];
+
+    // ⭐ 網頁載入時自動抓取目前後台所有的商品代碼
+    window.addEventListener('DOMContentLoaded', () => {
+        showToast("⏳ 正在載入雲端代碼庫...");
+        fetch(`${GAS_URL}?mode=getProducts&t=${new Date().getTime()}`)
+            .then(res => res.json())
+            .then(data => {
+                data.forEach(p => {
+                    if (p.id) usedCodes.add(String(p.id).toUpperCase());
+                });
+                showToast("✅ 雲端商品代碼已就緒！");
+            })
+            .catch(err => {
+                console.error("載入代碼失敗:", err);
+                showToast("⚠️ 代碼載入失敗，將從 A001 開始計算");
+            });
+    });
+
+    // ⭐ 核心運算：自動取得下一個未使用的代碼（包含填補空缺）
+    function getNextAvailableCode() {
+        // 合併雲端已用的代碼與畫面上剛建立尚未同步的代碼
+        let localUsed = new Set(usedCodes);
+        badgeHistory.forEach(b => localUsed.add(String(b.code).toUpperCase()));
+
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        for (let i = 0; i < letters.length; i++) {
+            let letter = letters[i];
+            for (let num = 1; num <= 999; num++) {
+                // 產生如 A001, A015 的格式
+                let code = letter + num.toString().padStart(3, '0');
+                if (!localUsed.has(code)) {
+                    return code;
+                }
+            }
+        }
+        return "Z999"; // 極端防呆
+    }
 
     function toggleSettings() {
         let modal = document.getElementById('rate-settings-modal');
@@ -265,7 +303,6 @@
     });
 
     function initCanvas() {
-        // 💡 動態壓縮照片解析度至最大 1440 像素，讓上傳至 Line 更順暢不超過 4MB
         const MAX_DIMENSION = 1440;
         let finalWidth = img.width;
         let finalHeight = img.height;
@@ -301,7 +338,6 @@
         };
     }
 
-    // 💡 與新版牛皮紙標籤的排版邊距同步運算 Hitbox 大小
     function getBadgeHitbox(b) {
         let text = b.code ? `${b.code} NT$${b.twd}` : `NT$${b.twd}`;
         let subText = `(¥${b.jpy})`;
@@ -326,19 +362,25 @@
         return { left: b.x - finalBoxWidth / 2, right: b.x + finalBoxWidth / 2, top: b.y - finalBoxHeight / 2, bottom: b.y + finalBoxHeight / 2 };
     }
 
-    function parseAndAddBadge(input, x, y, cw = 0, ch = 0) {
+    // ⭐ 調整輸入解析：如果只有輸入數字，就配發 autoCode；如果輸入文字+數字，則視為客製化代碼
+    function parseAndAddBadge(input, x, y, autoCode, cw = 0, ch = 0) {
         if (!input) return;
         let code = "", jpy = 0;
         input = input.trim().replace(/\s+/g, ' ');
         let parts = input.split(' ');
         
-        if (parts.length > 1) { 
+        // 若使用者輸入兩項以上 (例如 "B002 500")，則強制視為自訂代碼
+        if (parts.length > 1 && isNaN(parseInt(parts[0]))) { 
             code = parts[0].toUpperCase(); 
             for (let i = parts.length - 1; i >= 1; i--) {
                 let parsed = parseInt(parts[i]);
                 if (!isNaN(parsed)) { jpy = parsed; break; }
             }
-        } else { jpy = parseInt(parts[0]) || 0; }
+        } else { 
+            // 只有輸入數字，或是無法辨識為文字，就採用自動分配的代碼
+            code = autoCode;
+            jpy = parseInt(parts[0]) || 0; 
+        }
 
         if (jpy <= 0) return alert("⚠️ 請輸入有效的日幣金額！");
         let twd = calculateTWD(jpy);
@@ -351,18 +393,20 @@
             let box = getBadgeHitbox(badgeHistory[i]);
             if (pos.x >= box.left && pos.x <= box.right && pos.y >= box.top && pos.y <= box.bottom) {
                 let b = badgeHistory[i];
-                let defaultVal = (b.code ? b.code + " " : "") + b.jpy;
                 setTimeout(() => {
-                    let input = prompt("✏️ 請修改【商品代碼】與【日幣價格】", defaultVal);
+                    // 雙擊修改時預設僅需修改日幣，但可透過「新代碼 日幣」強制覆蓋
+                    let input = prompt(`✏️ 請修改【日幣價格】\n(目前代碼：${b.code}，若要連代碼一起改，請輸入: 新代碼 日幣)`, b.jpy);
                     if (input) {
-                        let code = "", jpy = 0;
+                        let code = b.code, jpy = 0;
                         let parts = input.trim().replace(/\s+/g, ' ').split(' ');
-                        if (parts.length > 1) { 
+                        if (parts.length > 1 && isNaN(parseInt(parts[0]))) { 
                             code = parts[0].toUpperCase(); 
                             for (let k = parts.length - 1; k >= 1; k--) {
                                 if (!isNaN(parseInt(parts[k]))) { jpy = parseInt(parts[k]); break; }
                             }
-                        } else { jpy = parseInt(parts[0]) || 0; }
+                        } else { 
+                            jpy = parseInt(parts[0]) || 0; 
+                        }
                         if (jpy > 0) { b.code = code; b.jpy = jpy; b.twd = calculateTWD(jpy); redrawCanvas(); }
                     }
                 }, 50);
@@ -430,24 +474,27 @@
             
             if (w > 20 && h > 20) {
                 setTimeout(() => {
-                    let input = prompt("✏️ 請輸入【代碼與日幣】(例: A02 20)");
-                    if (input) parseAndAddBadge(input, cx, cy, w, h);
+                    let autoCode = getNextAvailableCode();
+                    let input = prompt(`📍 自動配發代碼：【${autoCode}】\n💰 請輸入「日幣價格」：\n(若要自訂代碼，請輸入: 代碼 價格)`);
+                    if (input) parseAndAddBadge(input, cx, cy, autoCode, w, h);
                     else redrawCanvas();
                 }, 50);
             } else {
                 redrawCanvas();
                 if (isClick) {
                     setTimeout(() => {
-                        let input = prompt("請輸入【商品代碼】與【日幣價格】\n(例如：A02 1800)");
-                        parseAndAddBadge(input, startX, startY);
+                        let autoCode = getNextAvailableCode();
+                        let input = prompt(`📍 自動配發代碼：【${autoCode}】\n💰 請輸入「日幣價格」：\n(若要自訂代碼，請輸入: 代碼 價格)`);
+                        parseAndAddBadge(input, startX, startY, autoCode);
                     }, 50);
                 }
             }
         } 
         else if (isClick && currentMode === 'click') {
             setTimeout(() => {
-                let input = prompt("請輸入【商品代碼】與【日幣價格】\n(例如：A02 1800)");
-                parseAndAddBadge(input, startX, startY);
+                let autoCode = getNextAvailableCode();
+                let input = prompt(`📍 自動配發代碼：【${autoCode}】\n💰 請輸入「日幣價格」：\n(若要自訂代碼，請輸入: 代碼 價格)`);
+                parseAndAddBadge(input, startX, startY, autoCode);
             }, 50);
         }
     }
@@ -475,7 +522,6 @@
         badgeHistory.forEach(b => { drawPriceBadge(b.x, b.y, b.code, b.jpy, b.twd, b.cw, b.ch); });
     }
 
-    // 繪製愛心路徑
     function drawHeart(ctx, x, y, size, rotationDeg = 0) {
         ctx.save();
         ctx.translate(x, y);
@@ -487,21 +533,18 @@
         ctx.bezierCurveTo(0, 60, 50, 85, 50, 100);
         ctx.bezierCurveTo(50, 85, 100, 60, 100, 30);
         ctx.bezierCurveTo(100, -10, 50, -10, 50, 30);
-        ctx.fillStyle = "#b73229"; // 紅色
+        ctx.fillStyle = "#b73229"; 
         ctx.fill();
         ctx.restore();
     }
 
-    // 繪製狗掌路徑
     function drawPaw(ctx, x, y, size, rotationDeg = 0) {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(rotationDeg * Math.PI / 180);
         ctx.scale(size/100, size/100);
-        ctx.fillStyle = "#5c4033"; // 棕色
-        // 主掌印
+        ctx.fillStyle = "#5c4033"; 
         ctx.beginPath(); ctx.ellipse(50, 70, 22, 18, 0, 0, Math.PI*2); ctx.fill();
-        // 腳趾
         ctx.beginPath(); ctx.ellipse(25, 45, 10, 14, -Math.PI/6, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.ellipse(40, 25, 10, 14, -Math.PI/12, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.ellipse(60, 25, 10, 14, Math.PI/12, 0, Math.PI*2); ctx.fill();
@@ -509,7 +552,6 @@
         ctx.restore();
     }
 
-    // 💡 調整：修正文字置中與牛皮紙不規則質感標籤繪製
     function drawPriceBadge(x, y, code, jpy, twd, cw = 0, ch = 0) {
         ctx.save();
         let text = code ? `${code} NT$${twd}` : `NT$${twd}`;
@@ -539,14 +581,13 @@
         let holeY = top + finalBoxHeight / 2;
         let eyeletRadius = fontSize * 0.35;
 
-        // 1. 繪製麻繩
         ctx.beginPath();
         ctx.moveTo(holeX, holeY - eyeletRadius);
         ctx.bezierCurveTo(holeX + fontSize*3, holeY - fontSize*1.5, holeX + fontSize*4, holeY + fontSize*0.5, holeX, holeY + eyeletRadius);
         ctx.lineWidth = Math.max(3, fontSize * 0.2);
         ctx.strokeStyle = "#c0a887"; 
         ctx.stroke();
-        // 繩子紋路
+        
         ctx.beginPath();
         ctx.moveTo(holeX, holeY - eyeletRadius);
         ctx.bezierCurveTo(holeX + fontSize*3, holeY - fontSize*1.5, holeX + fontSize*4, holeY + fontSize*0.5, holeX, holeY + eyeletRadius);
@@ -556,11 +597,10 @@
         ctx.stroke();
         ctx.setLineDash([]); 
 
-        // 2. 繪製撕裂邊緣牛皮紙背景
         ctx.shadowColor = "rgba(0, 0, 0, 0.4)"; 
         ctx.shadowBlur = fontSize * 0.4;
         ctx.shadowOffsetY = fontSize * 0.2;
-        ctx.fillStyle = "#d3b38c"; // 牛皮紙顏色
+        ctx.fillStyle = "#d3b38c"; 
 
         ctx.beginPath();
         let sX = finalBoxWidth / 8;
@@ -593,7 +633,6 @@
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // 3. 繪製金屬扣環孔洞
         ctx.beginPath();
         ctx.arc(holeX, holeY, eyeletRadius * 1.6, 0, Math.PI * 2);
         ctx.fillStyle = "#c2a478";
@@ -602,7 +641,6 @@
         ctx.strokeStyle = "#8b7152";
         ctx.stroke();
         
-        // 剪裁出中空的孔洞顯示底層照片
         ctx.save();
         ctx.beginPath();
         ctx.arc(holeX, holeY, eyeletRadius, 0, Math.PI * 2);
@@ -616,18 +654,16 @@
         ctx.strokeStyle = "rgba(0,0,0,0.3)";
         ctx.stroke();
 
-        // 4. 繪製圖案點綴
         drawHeart(ctx, holeX - fontSize * 1.3, holeY - fontSize * 0.3, fontSize * 0.35, -15);
         drawPaw(ctx, holeX - fontSize * 0.9, holeY + fontSize * 0.6, fontSize * 0.5, -20);
         drawPaw(ctx, holeX - fontSize * 0.2, holeY + fontSize * 0.9, fontSize * 0.4, 15);
 
-        // 5. 繪製字體 (已修正置中邏輯)
         let textStartX = left + (finalBoxWidth - fontSize * 1.2) / 2;
         let textStartY = top + paddingY * 1.1;
         
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillStyle = "#462e1b"; // 深棕色墨水
+        ctx.fillStyle = "#462e1b"; 
         
         ctx.font = `bold ${fontSize}px ${fontStack}`;
         ctx.fillText(text, textStartX, textStartY);
@@ -638,7 +674,6 @@
         ctx.restore();
     }
 
-    // ⭐ 修改點：在同步給 GAS 前，先將 Canvas 轉成圖檔並自動上傳至 ImgBB
     async function syncAllToBackend(btn) {
         let validBadges = badgeHistory.filter(b => b.code !== "");
         if (validBadges.length === 0) return showToast("⚠️ 目前沒有含有代碼的標籤可以同步！");
@@ -650,9 +685,7 @@
         let imgUrl = "";
 
         try {
-            // 1️⃣ 先將 Canvas 照片上傳到圖床
             try {
-                // 取得 Base64 格式的圖片字串
                 let base64Image = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
                 let formData = new FormData();
                 formData.append("image", base64Image);
@@ -663,19 +696,17 @@
                 });
                 let imgbbData = await imgbbRes.json();
                 if (imgbbData.success) {
-                    imgUrl = imgbbData.data.url; // 取得上傳後的照片網址
+                    imgUrl = imgbbData.data.url; 
                 } else {
                     console.error("照片上傳 ImgBB 失敗:", imgbbData);
                 }
             } catch(e) {
                 console.error("照片上傳例外錯誤:", e);
-                // 即使照片上傳失敗，仍讓價格繼續同步
                 showToast("⚠️ 照片上傳失敗，將僅同步價格");
             }
 
             btn.innerText = "⏳ 寫入雲端中...";
 
-            // 2️⃣ 將價格連同照片網址，傳送給 GAS 儲存
             for (let b of validBadges) {
                 try {
                     let res = await fetch(GAS_URL, { 
@@ -684,10 +715,13 @@
                             action: "syncPriceFromTool", 
                             productCode: b.code, 
                             newPrice: b.twd,
-                            imgUrl: imgUrl // ⭐ 將照片網址帶入
+                            imgUrl: imgUrl 
                         }) 
                     });
-                    if(await res.text() === "success") successCount++;
+                    if(await res.text() === "success") {
+                        successCount++;
+                        usedCodes.add(String(b.code).toUpperCase()); // 同步成功後加入本地的已使用名單
+                    }
                 } catch (err) {
                     console.error("單筆同步失敗:", err);
                 }
@@ -742,11 +776,9 @@
         const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
         
         if (isMobile && navigator.share) {
-            // 手機端優先嘗試喚起原生分享選單 (包含儲存影像選項)
             fetch(dataUrl).then(res => res.blob()).then(blob => {
                 const file = new File([blob], `標價圖_${new Date().getTime()}.jpg`, { type: 'image/jpeg' });
                 navigator.share({ title: '儲存標價圖', files: [file] }).catch(() => {
-                    // 若取消或失敗，備案：彈出視窗讓用戶長按儲存
                     let resultImg = document.getElementById('export-image-result');
                     resultImg.src = dataUrl;
                     document.getElementById('image-export-modal').style.display = 'flex';
@@ -757,7 +789,6 @@
                 document.getElementById('image-export-modal').style.display = 'flex';
             });
         } else {
-            // 電腦端直接觸發下載
             try {
                 let link = document.createElement('a');
                 link.download = `標價圖_${new Date().getTime()}.jpg`; 

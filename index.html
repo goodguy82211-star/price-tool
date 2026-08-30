@@ -202,8 +202,8 @@
     ];
 
     // ⭐ 獨立出重整代碼的函數，方便開網頁與點擊按鈕時呼叫
-    function refreshCodes() {
-        showToast("⏳ 正在與雲端核對最新代碼...");
+    function refreshCodes(silent = false) {
+        if(!silent) showToast("⏳ 正在與雲端核對最新代碼...");
         fetch(`${GAS_URL}?mode=getProducts&t=${new Date().getTime()}`)
             .then(res => res.json())
             .then(data => {
@@ -211,16 +211,16 @@
                 data.forEach(p => {
                     if (p.id) usedCodes.add(String(p.id).toUpperCase());
                 });
-                showToast("✅ 雲端代碼已更新完成！");
+                if(!silent) showToast("✅ 雲端代碼已更新完成！");
             })
             .catch(err => {
                 console.error("載入代碼失敗:", err);
-                showToast("⚠️ 代碼載入失敗，請檢查網路");
+                if(!silent) showToast("⚠️ 代碼載入失敗，請檢查網路");
             });
     }
 
     // 網頁載入時自動執行一次
-    window.addEventListener('DOMContentLoaded', refreshCodes);
+    window.addEventListener('DOMContentLoaded', () => refreshCodes(false));
 
     // ⭐ 核心運算：自動取得下一個未使用的代碼（包含填補空缺）
     function getNextAvailableCode() {
@@ -329,6 +329,9 @@
         canvas.style.display = 'block';
         badgeHistory = [];
         redrawCanvas();
+        
+        // ⭐ 每次載入新照片，就在背景自動靜默更新一次代碼庫！確保萬無一失
+        refreshCodes(true);
     }
 
     function getPointerPos(e) {
@@ -373,6 +376,7 @@
         return { left: b.x - finalBoxWidth / 2, right: b.x + finalBoxWidth / 2, top: b.y - finalBoxHeight / 2, bottom: b.y + finalBoxHeight / 2 };
     }
 
+    // ⭐ 調整輸入解析：如果只有輸入數字，就配發 autoCode；如果輸入文字+數字，則視為客製化代碼
     function parseAndAddBadge(input, x, y, autoCode, cw = 0, ch = 0) {
         if (!input) return;
         let code = "", jpy = 0;
@@ -388,6 +392,7 @@
             }
         } else { 
             // 只有輸入數字，採用自動分配的代碼
+            // 💡 確保 autoCode 存在，否則再算一次
             code = autoCode || getNextAvailableCode();
             jpy = parseInt(parts[0]) || 0; 
         }
@@ -404,6 +409,7 @@
             if (pos.x >= box.left && pos.x <= box.right && pos.y >= box.top && pos.y <= box.bottom) {
                 let b = badgeHistory[i];
                 setTimeout(() => {
+                    // 雙擊修改時預設僅需修改日幣，但可透過「新代碼 日幣」強制覆蓋
                     let input = prompt(`✏️ 請修改【日幣價格】\n(目前代碼：${b.code}，若要連代碼一起改，請輸入: 新代碼 日幣)`, b.jpy);
                     if (input) {
                         let code = b.code, jpy = 0;
@@ -740,7 +746,7 @@
             if(successCount > 0) {
                 showToast(`✅ 同步完成！照片與 ${successCount} 筆商品已更新。`);
                 // ⭐ 新增：同步成功後，自動在背景更新一次最新代碼表
-                refreshCodes();
+                refreshCodes(true);
             } else {
                 showToast(`❌ 同步失敗，請檢查網路連線。`);
             }

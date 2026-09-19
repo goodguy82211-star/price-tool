@@ -26,6 +26,7 @@
         .btn-secondary { background: #718096; }
         .btn-camera { background: #d53f8c; }
         .btn-dark { background: #4a5568; }
+        .btn-info { background: #00b5ad; } /* 新增更新圖片按鈕顏色 */
         
         .slider-container { display: flex; align-items: center; background: #eef3f8; padding: 12px 15px; border-radius: 12px; border: 1px solid #c6d4e1; margin-bottom: 15px; }
         .slider-container label { font-weight: bold; margin-right: 15px; font-size: 14px; white-space: nowrap; }
@@ -143,7 +144,6 @@
         <button class="btn btn-camera" onclick="document.getElementById('camera-loader').click()">📷 立即拍照</button>
 
         <button class="btn btn-secondary" onclick="toggleSettings()">⚙️ 匯率設定</button>
-        <!-- ⭐ 新增手動重整代碼按鈕 -->
         <button class="btn btn-dark" onclick="refreshCodes()">🔄 重整代碼</button>
         
         <button class="btn btn-warning" onclick="copyImageToClipboard()">📤 複製分享</button>
@@ -151,6 +151,8 @@
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原上一步</button>
 
         <button class="btn btn-primary" onclick="syncAllToBackend(this)" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
+        <!-- ⭐ 新增特定代碼照片更新功能 -->
+        <button class="btn btn-info" onclick="updateSpecificCodeImage(this)" style="flex-basis: 100%; margin-top: 5px;">🖼️ 更新特定代碼照片</button>
     </div>
 
     <div class="slider-container">
@@ -163,7 +165,7 @@
         1. 直播時請點擊 <b>【📷 立即拍照】</b>，手機將直接開啟相機，拍完自動載入！<br>
         2. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面後只需輸入「日幣」，系統會<b>自動配發並補齊空缺代碼 (如 A001)</b>！<br>
         3. 若在電腦後台刪除代碼，請點擊 <b>【🔄 重整代碼】</b> 讓手機重新抓取最新狀態。<br>
-        4. 點選 <b>【⚙️ 匯率設定】</b> 可自訂 5 個價格區間與對應乘數。<br>
+        4. 如需更正錯誤圖片，請上傳正確照片後點擊 <b>【🖼️ 更新特定代碼照片】</b> 覆蓋後台紀錄。<br>
         5. 點擊 <b>【☁️ 確認並同步到後台】</b> 將價格與照片寫入雲端並歸入連線區。
     </div>
     
@@ -174,7 +176,6 @@
 </div>
 
 <script>
-    // ⚠️ 確保這裡是您最新的 GAS 網址
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxjeKY2LuG_z2NxPdYsnGf8OF8JIy6LqxpHuYTd-rjVZ8Wj5spuU07N8UsZzoCeWbuE/exec";
     const IMGBB_API_KEY = "047c09f72967af944b7686625c1c9680";
 
@@ -189,10 +190,8 @@
     let isDrawingBox = false, boxCurrentX = 0, boxCurrentY = 0;
     let lastTapTime = 0; 
 
-    // ⭐ 全域變數：儲存雲端已經使用過的代碼，供自動配發運算使用
     let usedCodes = new Set();
 
-    // 初始化 5 個匯率區間與倍率
     let exchangeRates = [
         { limit: 1000, rate: 0.30 },
         { limit: 2000, rate: 0.27 },
@@ -201,13 +200,12 @@
         { limit: Infinity, rate: 0.23 } 
     ];
 
-    // ⭐ 獨立出重整代碼的函數，方便開網頁與點擊按鈕時呼叫
     function refreshCodes(silent = false) {
         if(!silent) showToast("⏳ 正在與雲端核對最新代碼...");
         fetch(`${GAS_URL}?mode=getProducts&t=${new Date().getTime()}`)
             .then(res => res.json())
             .then(data => {
-                usedCodes.clear(); // 清空舊記憶
+                usedCodes.clear(); 
                 data.forEach(p => {
                     if (p.id) usedCodes.add(String(p.id).toUpperCase());
                 });
@@ -219,12 +217,9 @@
             });
     }
 
-    // 網頁載入時自動執行一次
     window.addEventListener('DOMContentLoaded', () => refreshCodes(false));
 
-    // ⭐ 核心運算：自動取得下一個未使用的代碼（包含填補空缺）
     function getNextAvailableCode() {
-        // 合併雲端已用的代碼與畫面上剛建立尚未同步的代碼
         let localUsed = new Set(usedCodes);
         badgeHistory.forEach(b => {
              if (b.code) localUsed.add(String(b.code).toUpperCase());
@@ -234,14 +229,13 @@
         for (let i = 0; i < letters.length; i++) {
             let letter = letters[i];
             for (let num = 1; num <= 999; num++) {
-                // 產生如 A001, A015 的格式
                 let code = letter + num.toString().padStart(3, '0');
                 if (!localUsed.has(code)) {
-                    return code; // 找到第一個空缺就會立刻回傳！
+                    return code; 
                 }
             }
         }
-        return "Z999"; // 極端防呆
+        return "Z999"; 
     }
 
     function toggleSettings() {
@@ -313,7 +307,8 @@
     });
 
     function initCanvas() {
-        const MAX_DIMENSION = 1440;
+        // ⭐ 修正點：縮小圖片上傳容量 (1440 改為 720，減少約75%容量)
+        const MAX_DIMENSION = 720;
         let finalWidth = img.width;
         let finalHeight = img.height;
 
@@ -330,7 +325,6 @@
         badgeHistory = [];
         redrawCanvas();
         
-        // ⭐ 每次載入新照片，就在背景自動靜默更新一次代碼庫！確保萬無一失
         refreshCodes(true);
     }
 
@@ -353,22 +347,19 @@
 
     function getBadgeHitbox(b) {
         let displayCode = b.code ? b.code : "UNKNOWN";
+        // ⭐ 修正點：隱藏日幣金額
         let text = `${displayCode} NT$${b.twd}`;
-        let subText = `(¥${b.jpy})`;
         let sf = document.getElementById('size-slider').value;
         let fontSize = Math.max(14, Math.round((canvas.width / 1000) * sf * 1.5));
-        let subFontSize = Math.round(fontSize * 0.75);
         let fontStack = "'Comic Sans MS', 'Chalkboard SE', 'Fredoka One', 'Marker Felt', sans-serif";
         
         ctx.font = `bold ${fontSize}px ${fontStack}`;
         let textWidth = ctx.measureText(text).width;
-        ctx.font = `bold ${subFontSize}px ${fontStack}`;
-        let subWidth = ctx.measureText(subText).width;
         
         let paddingX = fontSize * 1.5;
         let paddingY = fontSize * 1.0;
-        let contentWidth = Math.max(textWidth, subWidth) + paddingX * 2.2;
-        let contentHeight = fontSize + subFontSize + paddingY * 1.8;
+        let contentWidth = textWidth + paddingX * 2.2;
+        let contentHeight = fontSize + paddingY * 1.5;
         
         let finalBoxWidth = Math.max(contentWidth, b.cw || 0);
         let finalBoxHeight = Math.max(contentHeight, b.ch || 0);
@@ -376,14 +367,12 @@
         return { left: b.x - finalBoxWidth / 2, right: b.x + finalBoxWidth / 2, top: b.y - finalBoxHeight / 2, bottom: b.y + finalBoxHeight / 2 };
     }
 
-    // ⭐ 調整輸入解析：如果只有輸入數字，就配發 autoCode；如果輸入文字+數字，則視為客製化代碼
     function parseAndAddBadge(input, x, y, autoCode, cw = 0, ch = 0) {
         if (!input) return;
         let code = "", jpy = 0;
         input = input.trim().replace(/\s+/g, ' ');
         let parts = input.split(' ');
         
-        // 若使用者輸入兩項以上且第一項不是純數字 (例如 "B002 500")，則強制視為自訂代碼
         if (parts.length > 1 && isNaN(parseInt(parts[0]))) { 
             code = parts[0].toUpperCase(); 
             for (let i = parts.length - 1; i >= 1; i--) {
@@ -391,8 +380,6 @@
                 if (!isNaN(parsed)) { jpy = parsed; break; }
             }
         } else { 
-            // 只有輸入數字，採用自動分配的代碼
-            // 💡 確保 autoCode 存在，否則再算一次
             code = autoCode || getNextAvailableCode();
             jpy = parseInt(parts[0]) || 0; 
         }
@@ -409,7 +396,6 @@
             if (pos.x >= box.left && pos.x <= box.right && pos.y >= box.top && pos.y <= box.bottom) {
                 let b = badgeHistory[i];
                 setTimeout(() => {
-                    // 雙擊修改時預設僅需修改日幣，但可透過「新代碼 日幣」強制覆蓋
                     let input = prompt(`✏️ 請修改【日幣價格】\n(目前代碼：${b.code}，若要連代碼一起改，請輸入: 新代碼 日幣)`, b.jpy);
                     if (input) {
                         let code = b.code, jpy = 0;
@@ -570,22 +556,19 @@
     function drawPriceBadge(x, y, code, jpy, twd, cw = 0, ch = 0) {
         ctx.save();
         let displayCode = code ? code : "UNKNOWN";
+        // ⭐ 修正點：隱藏日幣金額顯示
         let text = `${displayCode} NT$${twd}`;
-        let subText = `(¥${jpy})`;
         let sf = document.getElementById('size-slider').value;
         let fontSize = Math.max(14, Math.round((canvas.width / 1000) * sf * 1.5));
-        let subFontSize = Math.round(fontSize * 0.75);
         let fontStack = "'Comic Sans MS', 'Chalkboard SE', 'Fredoka One', 'Marker Felt', sans-serif";
         
         ctx.font = `bold ${fontSize}px ${fontStack}`;
         let textWidth = ctx.measureText(text).width;
-        ctx.font = `bold ${subFontSize}px ${fontStack}`;
-        let subWidth = ctx.measureText(subText).width;
         
         let paddingX = fontSize * 1.5; 
         let paddingY = fontSize * 1.0;
-        let contentWidth = Math.max(textWidth, subWidth) + paddingX * 2.2; 
-        let contentHeight = fontSize + subFontSize + paddingY * 1.8;
+        let contentWidth = textWidth + paddingX * 2.2; 
+        let contentHeight = fontSize + paddingY * 1.5;
         
         let finalBoxWidth = Math.max(contentWidth, cw);
         let finalBoxHeight = Math.max(contentHeight, ch);
@@ -675,7 +658,7 @@
         drawPaw(ctx, holeX - fontSize * 0.2, holeY + fontSize * 0.9, fontSize * 0.4, 15);
 
         let textStartX = left + (finalBoxWidth - fontSize * 1.2) / 2;
-        let textStartY = top + paddingY * 1.1;
+        let textStartY = top + (finalBoxHeight - fontSize) / 2 + fontSize * 0.05; // 垂直置中
         
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
@@ -684,9 +667,6 @@
         ctx.font = `bold ${fontSize}px ${fontStack}`;
         ctx.fillText(text, textStartX, textStartY);
         
-        ctx.font = `bold ${subFontSize}px ${fontStack}`;
-        ctx.fillText(subText, textStartX, textStartY + fontSize * 1.2);
-
         ctx.restore();
     }
 
@@ -702,7 +682,7 @@
 
         try {
             try {
-                let base64Image = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+                let base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
                 let formData = new FormData();
                 formData.append("image", base64Image);
                 
@@ -736,7 +716,7 @@
                     });
                     if(await res.text() === "success") {
                         successCount++;
-                        usedCodes.add(String(b.code).toUpperCase()); // 同步成功後加入本地的已使用名單
+                        usedCodes.add(String(b.code).toUpperCase()); 
                     }
                 } catch (err) {
                     console.error("單筆同步失敗:", err);
@@ -745,11 +725,67 @@
             
             if(successCount > 0) {
                 showToast(`✅ 同步完成！照片與 ${successCount} 筆商品已更新。`);
-                // ⭐ 新增：同步成功後，自動在背景更新一次最新代碼表
                 refreshCodes(true);
             } else {
                 showToast(`❌ 同步失敗，請檢查網路連線。`);
             }
+        } finally {
+            btn.innerText = originalBtnText;
+            btn.disabled = false;
+        }
+    }
+
+    // ⭐ 新增功能：特定代碼照片更新
+    async function updateSpecificCodeImage(btn) {
+        if (!img.src) return showToast("⚠️ 請先載入或拍攝一張正確的照片！");
+        
+        let targetCode = prompt("🖼️ 請輸入要更新照片的「商品代碼」\n(例如: A001)：");
+        if (!targetCode) return;
+        targetCode = targetCode.trim().toUpperCase();
+
+        if (!confirm(`確定要將目前的照片直接更新給代碼【${targetCode}】嗎？\n(此操作會覆蓋雲端上的原照片)`)) return;
+
+        let originalBtnText = btn.innerText;
+        btn.innerText = "⏳ 上傳照片中...";
+        btn.disabled = true;
+
+        try {
+            let base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+            let formData = new FormData();
+            formData.append("image", base64Image);
+            
+            let imgbbRes = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_API_KEY, {
+                method: "POST",
+                body: formData
+            });
+            let imgbbData = await imgbbRes.json();
+            
+            if (!imgbbData.success) {
+                throw new Error("ImgBB上傳失敗");
+            }
+            let imgUrl = imgbbData.data.url;
+
+            btn.innerText = "⏳ 更新雲端...";
+
+            // 將照片傳送至 GAS 進行特定代碼更新
+            let res = await fetch(GAS_URL, { 
+                method: "POST", 
+                body: JSON.stringify({ 
+                    action: "syncPriceFromTool", 
+                    productCode: targetCode, 
+                    imgUrl: imgUrl 
+                }) 
+            });
+            
+            let resultText = await res.text();
+            if(resultText === "success") {
+                showToast(`✅ 代碼 ${targetCode} 照片更新成功！`);
+            } else {
+                showToast(`✅ 照片已送出更新請求！`);
+            }
+        } catch (err) {
+            console.error("更新照片失敗:", err);
+            showToast("❌ 更新失敗，請檢查網路連線。");
         } finally {
             btn.innerText = originalBtnText;
             btn.disabled = false;

@@ -26,7 +26,7 @@
         .btn-secondary { background: #718096; }
         .btn-camera { background: #d53f8c; }
         .btn-dark { background: #4a5568; }
-        .btn-info { background: #00b5ad; } /* 新增更新圖片按鈕顏色 */
+        .btn-info { background: #00b5ad; } /* 特定代碼更新按鈕顏色 */
         
         .slider-container { display: flex; align-items: center; background: #eef3f8; padding: 12px 15px; border-radius: 12px; border: 1px solid #c6d4e1; margin-bottom: 15px; }
         .slider-container label { font-weight: bold; margin-right: 15px; font-size: 14px; white-space: nowrap; }
@@ -151,8 +151,8 @@
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原上一步</button>
 
         <button class="btn btn-primary" onclick="syncAllToBackend(this)" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
-        <!-- ⭐ 新增特定代碼照片更新功能 -->
-        <button class="btn btn-info" onclick="updateSpecificCodeImage(this)" style="flex-basis: 100%; margin-top: 5px;">🖼️ 更新特定代碼照片</button>
+        <!-- ⭐ 特定代碼與價格雙重更新按鈕 -->
+        <button class="btn btn-info" onclick="updateSpecificCodeImage(this)" style="flex-basis: 100%; margin-top: 5px;">🖼️ 修正特定代碼 (更新照片與價格)</button>
     </div>
 
     <div class="slider-container">
@@ -163,9 +163,9 @@
     <div class="tip">
         <strong>📱 成功秘訣：</strong><br>
         1. 直播時請點擊 <b>【📷 立即拍照】</b>，手機將直接開啟相機，拍完自動載入！<br>
-        2. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面後只需輸入「日幣」，系統會<b>自動配發並補齊空缺代碼 (如 A001)</b>！<br>
-        3. 若在電腦後台刪除代碼，請點擊 <b>【🔄 重整代碼】</b> 讓手機重新抓取最新狀態。<br>
-        4. 如需更正錯誤圖片，請上傳正確照片後點擊 <b>【🖼️ 更新特定代碼照片】</b> 覆蓋後台紀錄。<br>
+        2. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面後只需輸入「日幣」，系統會自動配發並補齊空缺代碼！<br>
+        3. 若需更正錯誤商品，請上傳新照片並標上新價格後，點擊 <b>【🖼️ 修正特定代碼】</b> 來覆蓋後台錯誤紀錄。<br>
+        4. 點選 <b>【⚙️ 匯率設定】</b> 可自訂 5 個價格區間與對應乘數。<br>
         5. 點擊 <b>【☁️ 確認並同步到後台】</b> 將價格與照片寫入雲端並歸入連線區。
     </div>
     
@@ -307,7 +307,7 @@
     });
 
     function initCanvas() {
-        // ⭐ 修正點：縮小圖片上傳容量 (1440 改為 720，減少約75%容量)
+        // 縮小圖片上傳容量
         const MAX_DIMENSION = 720;
         let finalWidth = img.width;
         let finalHeight = img.height;
@@ -347,7 +347,7 @@
 
     function getBadgeHitbox(b) {
         let displayCode = b.code ? b.code : "UNKNOWN";
-        // ⭐ 修正點：隱藏日幣金額
+        // 隱藏日幣金額
         let text = `${displayCode} NT$${b.twd}`;
         let sf = document.getElementById('size-slider').value;
         let fontSize = Math.max(14, Math.round((canvas.width / 1000) * sf * 1.5));
@@ -556,7 +556,7 @@
     function drawPriceBadge(x, y, code, jpy, twd, cw = 0, ch = 0) {
         ctx.save();
         let displayCode = code ? code : "UNKNOWN";
-        // ⭐ 修正點：隱藏日幣金額顯示
+        // 隱藏日幣金額顯示
         let text = `${displayCode} NT$${twd}`;
         let sf = document.getElementById('size-slider').value;
         let fontSize = Math.max(14, Math.round((canvas.width / 1000) * sf * 1.5));
@@ -735,15 +735,23 @@
         }
     }
 
-    // ⭐ 新增功能：特定代碼照片更新
+    // ⭐ 升級功能：特定代碼照片與價格雙重更新
     async function updateSpecificCodeImage(btn) {
         if (!img.src) return showToast("⚠️ 請先載入或拍攝一張正確的照片！");
         
-        let targetCode = prompt("🖼️ 請輸入要更新照片的「商品代碼」\n(例如: A001)：");
+        let targetCode = prompt("🖼️ 請輸入要修正覆蓋的「商品代碼」\n(例如: A001)：");
         if (!targetCode) return;
         targetCode = targetCode.trim().toUpperCase();
 
-        if (!confirm(`確定要將目前的照片直接更新給代碼【${targetCode}】嗎？\n(此操作會覆蓋雲端上的原照片)`)) return;
+        // 搜尋畫面上是否有這個代碼的標籤，用來抓取新價格
+        let matchedBadge = badgeHistory.find(b => b.code.toUpperCase() === targetCode);
+        
+        if (!matchedBadge) {
+            alert(`⚠️ 畫面上找不到代碼為【${targetCode}】的標籤！\n請先在照片上點擊建立該代碼的新標價，系統才能同時更新價格與照片。`);
+            return;
+        }
+
+        if (!confirm(`確定要將目前的照片與新價格 (NT$${matchedBadge.twd}) 同步更新給代碼【${targetCode}】嗎？\n(此操作會覆蓋雲端上的原紀錄)`)) return;
 
         let originalBtnText = btn.innerText;
         btn.innerText = "⏳ 上傳照片中...";
@@ -767,25 +775,26 @@
 
             btn.innerText = "⏳ 更新雲端...";
 
-            // 將照片傳送至 GAS 進行特定代碼更新
+            // 將照片與找到的新價格傳送至 GAS 進行特定代碼更新
             let res = await fetch(GAS_URL, { 
                 method: "POST", 
                 body: JSON.stringify({ 
                     action: "syncPriceFromTool", 
                     productCode: targetCode, 
+                    newPrice: matchedBadge.twd, // 加入新價格
                     imgUrl: imgUrl 
                 }) 
             });
             
             let resultText = await res.text();
             if(resultText === "success") {
-                showToast(`✅ 代碼 ${targetCode} 照片更新成功！`);
+                showToast(`✅ 代碼 ${targetCode} 照片與價格修正成功！`);
             } else {
-                showToast(`✅ 照片已送出更新請求！`);
+                showToast(`✅ 修正請求已送出！`);
             }
         } catch (err) {
-            console.error("更新照片失敗:", err);
-            showToast("❌ 更新失敗，請檢查網路連線。");
+            console.error("更新失敗:", err);
+            showToast("❌ 修正失敗，請檢查網路連線。");
         } finally {
             btn.innerText = originalBtnText;
             btn.disabled = false;

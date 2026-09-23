@@ -178,7 +178,7 @@
     const ctx = canvas.getContext('2d');
     let img = new Image();
     let badgeHistory = []; 
-    let siteSettings = {}; // 儲存來自後台完整的站點設定
+    let siteSettings = {}; 
     
     let currentMode = 'click'; 
     let isDragging = false, dragTargetIndex = -1, dragOffsetX = 0, dragOffsetY = 0;
@@ -203,7 +203,6 @@
             .then(data => {
                 usedCodes.clear(); 
                 
-                // 查找與同步後台匯率設定
                 let setIdx = data.findIndex(p => p.id === '_SITE_SETTINGS_');
                 if (setIdx !== -1) {
                     try {
@@ -286,7 +285,6 @@
         
         redrawCanvas();
         
-        // 將最新設定儲存回雲端
         siteSettings.exchangeRates = exchangeRates;
         fetch(GAS_URL, { 
             method: "POST", 
@@ -353,7 +351,8 @@
     });
 
     function initCanvas() {
-        const MAX_DIMENSION = 720;
+        // ⭐ 優化 1：降低圖片解析度，加速處理與上傳
+        const MAX_DIMENSION = 640; 
         let finalWidth = img.width;
         let finalHeight = img.height;
 
@@ -718,14 +717,15 @@
         if (validBadges.length === 0) return showToast("⚠️ 目前沒有含有代碼的標籤可以同步！");
 
         let originalBtnText = btn.innerText;
-        btn.innerText = "⏳ 上傳照片中...";
+        btn.innerText = "⏳ 壓縮與上傳照片中...";
         btn.disabled = true; 
         let successCount = 0;
         let imgUrl = "";
 
         try {
             try {
-                let base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+                // ⭐ 優化 2：進一步壓縮品質至 0.65 (原為 0.8)，加速上傳速度
+                let base64Image = canvas.toDataURL('image/jpeg', 0.65).split(',')[1];
                 let formData = new FormData();
                 formData.append("image", base64Image);
                 
@@ -746,7 +746,8 @@
 
             btn.innerText = "⏳ 寫入雲端中...";
 
-            for (let b of validBadges) {
+            // ⭐ 優化 3：利用 Promise.all 同時並行寫入 GAS (加速 3 倍以上)
+            let syncPromises = validBadges.map(async (b) => {
                 try {
                     let res = await fetch(GAS_URL, { 
                         method: "POST", 
@@ -758,13 +759,18 @@
                         }) 
                     });
                     if(await res.text() === "success") {
-                        successCount++;
                         usedCodes.add(String(b.code).toUpperCase()); 
+                        return true;
                     }
                 } catch (err) {
-                    console.error("單筆同步失敗:", err);
+                    console.error(`代碼 ${b.code} 同步失敗:`, err);
                 }
-            }
+                return false;
+            });
+
+            // 等待所有並行請求完成
+            let results = await Promise.all(syncPromises);
+            successCount = results.filter(r => r === true).length;
             
             if(successCount > 0) {
                 showToast(`✅ 同步完成！照片與 ${successCount} 筆商品已更新。`);
@@ -795,11 +801,12 @@
         if (!confirm(`確定要將目前的照片與新價格 (NT$${matchedBadge.twd}) 同步更新給代碼【${targetCode}】嗎？\n(此操作會覆蓋雲端上的原紀錄)`)) return;
 
         let originalBtnText = btn.innerText;
-        btn.innerText = "⏳ 上傳照片中...";
+        btn.innerText = "⏳ 壓縮與上傳照片中...";
         btn.disabled = true;
 
         try {
-            let base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+            // ⭐ 優化：同樣降低特定覆蓋圖片的容量
+            let base64Image = canvas.toDataURL('image/jpeg', 0.65).split(',')[1];
             let formData = new FormData();
             formData.append("image", base64Image);
             
@@ -844,7 +851,7 @@
     function copyImageToClipboard() {
         if (!img.src) return alert("請先選擇照片！");
         
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85); 
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8); 
         
         if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
             try {
@@ -878,7 +885,7 @@
     function downloadImage() {
         if (!img.src) return alert("請先選擇照片！");
         
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
         
         if (isMobile && navigator.share) {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>⚡ 小魔丸連線 - 相片標價產生器</title>
+    <title>⚡ 小魔丸連線 - 相片標價產生器 (批次進化版)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f8fb; color: #132c4d; margin: 0; padding: 15px; }
         .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
@@ -28,6 +28,19 @@
         .btn-dark { background: #4a5568; }
         .btn-info { background: #00b5ad; } 
         
+        /* 縮圖列設計 */
+        .thumbnail-strip { display: flex; overflow-x: auto; gap: 12px; padding: 10px 5px; margin-bottom: 15px; border-radius: 12px; background: #eef3f8; border: 1px solid #c6d4e1; min-height: 75px; align-items: center;}
+        .thumbnail-wrap { position: relative; flex-shrink: 0; cursor: pointer; transition: 0.2s; }
+        .thumbnail-wrap img { width: 65px; height: 65px; object-fit: cover; border-radius: 8px; border: 3px solid transparent; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .thumbnail-wrap.active img { border-color: #e53e3e; transform: scale(1.05); }
+        .badge-count { position: absolute; top: -5px; right: -5px; background: #e53e3e; color: white; font-size: 11px; font-weight: bold; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; display: none;}
+        .thumbnail-wrap.has-badges .badge-count { display: flex; }
+
+        /* LINE 文案區 */
+        .copy-section { background: #fffbeb; padding: 15px; border-radius: 12px; border: 2px dashed #d69e2e; margin-bottom: 15px; }
+        .copy-section textarea { width: 100%; box-sizing: border-box; padding: 12px; border-radius: 8px; border: 1px solid #cbd5e0; margin-bottom: 10px; font-family: inherit; font-size: 14px; resize: vertical; min-height: 80px; outline: none; }
+        .copy-section textarea:focus { border-color: #d69e2e; }
+
         .slider-container { display: flex; align-items: center; background: #eef3f8; padding: 12px 15px; border-radius: 12px; border: 1px solid #c6d4e1; margin-bottom: 15px; }
         .slider-container label { font-weight: bold; margin-right: 15px; font-size: 14px; white-space: nowrap; }
         input[type="range"] { flex: 1; cursor: pointer; accent-color: #132c4d; }
@@ -35,7 +48,7 @@
         .canvas-container { position: relative; border: 2px dashed #c6d4e1; border-radius: 16px; overflow: hidden; background: #fafafa; text-align: center; min-height: 300px; display: flex; justify-content: center; align-items: center; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;}
         canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; cursor: crosshair; touch-action: none;}
         
-        .tip { font-size: 13px; color: #718096; margin-top: 8px; line-height: 1.6; background: #fffbeb; padding: 12px 15px; border-left: 4px solid #f6e05e; border-radius: 8px; margin-bottom: 20px;}
+        .tip { font-size: 13px; color: #718096; margin-top: 8px; line-height: 1.6; background: #f0f4f8; padding: 12px 15px; border-left: 4px solid #3182ce; border-radius: 8px; margin-bottom: 20px;}
         
         #toast {
             position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%);
@@ -73,20 +86,38 @@
 
 <div id="toast">✅ 同步成功！</div>
 
+<!-- 圖片匯出用的彈窗 -->
 <div id="image-export-modal" class="modal-overlay">
     <div class="modal-content">
-        <span class="close-modal-btn" onclick="closeExportModal()">×</span>
+        <span class="close-modal-btn" onclick="document.getElementById('image-export-modal').style.display='none'">×</span>
         <h3 style="margin: 0; color: #132c4d; font-size: 18px;">👇 請長按下方圖片</h3>
-        <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">選擇「儲存影像」或「拷貝」，即可傳送！</p>
+        <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">選擇「拷貝」或「儲存影像」，即可去 LINE 貼上！</p>
         <img id="export-image-result" src="">
+    </div>
+</div>
+
+<!-- 文字匯出用的彈窗 -->
+<div id="text-export-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 500px;">
+        <span class="close-modal-btn" onclick="document.getElementById('text-export-modal').style.display='none'">×</span>
+        <h3 style="margin: 0 0 15px 0; color: #132c4d; font-size: 18px; text-align: center;">💬 LINE 推播文案已生成</h3>
+        <p style="margin: 0 0 10px 0; font-size: 14px; color: #e53e3e; font-weight: bold; text-align: center;">文案已自動複製到剪貼簿！若未成功請手動拷貝：</p>
+        <textarea id="final-copy-text" style="width: 100%; height: 300px; padding: 10px; border-radius: 10px; border: 1px solid #c6d4e1; font-family: inherit; font-size: 14px; resize: none;" readonly></textarea>
+        <button class="btn btn-success" style="width: 100%; margin-top: 15px;" onclick="document.getElementById('text-export-modal').style.display='none'">✅ 完成</button>
     </div>
 </div>
 
 <div id="rate-settings-modal" class="modal-overlay" style="z-index: 10000;">
     <div class="modal-content" style="width: 420px;">
         <span class="close-modal-btn" onclick="toggleSettings()">×</span>
-        <h3 style="margin: 0 0 20px 0; color: #132c4d; font-size: 18px; text-align: center;">⚙️ 匯率與區間設定</h3>
+        <h3 style="margin: 0 0 20px 0; color: #132c4d; font-size: 18px; text-align: center;">⚙️ 系統與匯率設定</h3>
         
+        <div style="background: #eef3f8; padding: 15px; border-radius: 10px; border: 1px solid #c6d4e1; margin-bottom: 20px;">
+            <label style="font-weight: bold; color: #132c4d; display: block; margin-bottom: 8px; font-size: 14px;">🟢 您的 LINE 官方帳號 ID：</label>
+            <input type="text" id="line-oa-id" placeholder="例如：@798igrjf (需包含@)" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e0; font-size: 15px;">
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #718096;">設定後，系統將自動產生該帳號的自動喊單網址。</p>
+        </div>
+
         <div class="rate-group">
             <label>區間 1</label>
             <span>日幣 ≤ <input type="number" id="r1-lim" value="1000"></span>
@@ -113,13 +144,13 @@
             <span>倍數 <input type="number" step="0.01" id="r5-rate" value="0.23"></span>
         </div>
         
-        <button class="btn btn-success" style="width: 100%; margin-top: 15px;" onclick="updateRates(this)">💾 儲存並重新計算畫面上標籤</button>
+        <button class="btn btn-success" style="width: 100%; margin-top: 15px;" onclick="updateRates(this)">💾 儲存設定</button>
     </div>
 </div>
 
 <div class="container">
     <h2>
-        ⚡ 相片標價產生器
+        ⚡ 連線標價與推播工具
         <div class="mode-switch">
             <label>
                 <input type="radio" name="inputMode" value="click" checked onchange="changeMode(this.value)">
@@ -131,23 +162,31 @@
             </label>
         </div>
     </h2>
-    
+
     <div class="controls">
-        <input type="file" id="image-loader" accept="image/*" style="display:none;">
-        <button class="btn" onclick="document.getElementById('image-loader').click()">📁 相簿/檔案</button>
+        <!-- 🌟 更新：上限為 4 張的批次上傳按鈕 -->
+        <input type="file" id="image-loader" accept="image/*" multiple style="display:none;">
+        <button class="btn" onclick="document.getElementById('image-loader').click()" style="background:#2b6cb0;">📁 批次上傳相簿圖片 (上限4張)</button>
 
-        <input type="file" id="camera-loader" accept="image/*" capture="environment" style="display:none;">
-        <button class="btn btn-camera" onclick="document.getElementById('camera-loader').click()">📷 立即拍照</button>
-
-        <button class="btn btn-secondary" onclick="toggleSettings()">⚙️ 匯率設定</button>
-        <button class="btn btn-dark" onclick="refreshCodes()">🔄 重整代碼</button>
+        <button class="btn btn-secondary" onclick="toggleSettings()">⚙️ 系統設定 (LINE ID/匯率)</button>
+        <button class="btn btn-dark" onclick="refreshCodes()">🔄 重整最新代碼</button>
         
-        <button class="btn btn-warning" onclick="copyImageToClipboard()">📤 複製分享</button>
-        <button class="btn btn-success" onclick="downloadImage()">💾 下載圖片</button>
-        <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原上一步</button>
+        <!-- 🌟 兩種複製/下載方式 -->
+        <button class="btn btn-warning" onclick="copyCurrentImageToClipboard()">✂️ 複製當前圖片</button>
+        <button class="btn btn-success" onclick="downloadAllImages()">💾 批次下載全部圖片</button>
+        <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原標籤</button>
+    </div>
+    
+    <!-- 縮圖列 -->
+    <div class="thumbnail-strip" id="thumbnail-strip">
+        <p style="margin: 0 auto; color: #a0aec0; font-size: 14px; font-weight: bold;">目前尚無圖片，請點擊上方上傳</p>
+    </div>
 
-        <button class="btn btn-primary" onclick="syncAllToBackend(this)" style="flex-basis: 100%;">☁️ 確認並同步到後台</button>
-        <button class="btn btn-info" onclick="updateSpecificCodeImage(this)" style="flex-basis: 100%; margin-top: 5px;">🖼️ 修正特定代碼 (更新照片與價格)</button>
+    <!-- 自動文案產生區塊 -->
+    <div class="copy-section">
+        <label style="font-weight: bold; color: #d69e2e; display: block; margin-bottom: 8px; font-size: 15px;">💬 LINE 群組推播文案預先編輯</label>
+        <textarea id="promo-text" placeholder="哈囉大家～今天連線帶來超級可愛的新品！\n趕快點擊下方連結自動幫您喊單喔👇👇👇"></textarea>
+        <button class="btn btn-warning" style="width: 100%; background: #d69e2e;" onclick="generateLineCopy()">📋 收集所有代碼，產生並複製 LINE 推播文案</button>
     </div>
 
     <div class="slider-container">
@@ -156,37 +195,40 @@
     </div>
     
     <div class="tip">
-        <strong>📱 成功秘訣：</strong><br>
-        1. 直播時請點擊 <b>【📷 立即拍照】</b>，手機將直接開啟相機，拍完自動載入！<br>
-        2. 若使用 <b>【🖱️ 點擊小標籤】</b>，點擊畫面後只需輸入「日幣」，系統會自動配發並補齊空缺代碼！<br>
-        3. 若需更正錯誤商品，請上傳新照片並標上新價格後，點擊 <b>【🖼️ 修正特定代碼】</b> 來覆蓋後台錯誤紀錄。<br>
-        4. 點選 <b>【⚙️ 匯率設定】</b> 可自訂 5 個價格區間與對應乘數。<br>
-        5. 點擊 <b>【☁️ 確認並同步到後台】</b> 將價格與照片寫入雲端並歸入連線區。
+        <strong>📱 快速上架流程：</strong><br>
+        1. 點擊 <b>【📁 批次上傳相簿圖片】</b> 一次選取最多 4 張商品圖。<br>
+        2. 點擊縮圖切換圖片，依序為每張圖片打上價格標籤。<br>
+        3. 點擊 <b>【💾 批次下載全部圖片】</b> 存入相簿，去 LINE 勾選這 4 張傳送（或點 <b>【✂️ 複製當前圖片】</b> 一張張貼）。<br>
+        4. 在黃色區塊打好開場白後，點擊 <b>【📋 產生並複製 LINE 推播文案】</b> 去 LINE 貼上發送。<br>
+        5. 最後務必點擊最下方 <b>【☁️ 批次確認並同步所有照片到後台】</b>，機器人才抓得到客人的喊單！
     </div>
     
     <div class="canvas-container" id="canvas-box">
-        <p id="placeholder-text" style="color: #a0aec0; font-weight: bold; font-size: 16px;">請點選上方「載入/拍照」</p>
+        <p id="placeholder-text" style="color: #a0aec0; font-weight: bold; font-size: 16px;">請選取一張圖片開始標價</p>
         <canvas id="photo-canvas" style="display:none;"></canvas>
     </div>
+
+    <button class="btn btn-primary" onclick="syncAllToBackend(this)" style="width: 100%; margin-top: 20px; padding: 18px; font-size: 18px;">☁️ 批次確認並同步所有照片到後台</button>
 </div>
 
 <script>
+    // ⚠️ 請確認您的 GAS 網址與 ImgBB Key 是否正確
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxjeKY2LuG_z2NxPdYsnGf8OF8JIy6LqxpHuYTd-rjVZ8Wj5spuU07N8UsZzoCeWbuE/exec";
     const IMGBB_API_KEY = "047c09f72967af944b7686625c1c9680";
 
     const canvas = document.getElementById('photo-canvas');
     const ctx = canvas.getContext('2d');
-    let img = new Image();
-    let badgeHistory = []; 
+    
+    let imageFiles = []; 
+    let currentImgIndex = -1;
     let siteSettings = {}; 
+    let usedCodes = new Set();
     
     let currentMode = 'click'; 
     let isDragging = false, dragTargetIndex = -1, dragOffsetX = 0, dragOffsetY = 0;
     let isClick = true, startX = 0, startY = 0;
     let isDrawingBox = false, boxCurrentX = 0, boxCurrentY = 0;
     let lastTapTime = 0; 
-
-    let usedCodes = new Set();
 
     let exchangeRates = [
         { limit: 1000, rate: 0.30 },
@@ -196,20 +238,24 @@
         { limit: 9999999, rate: 0.23 } 
     ];
 
+    window.addEventListener('DOMContentLoaded', () => {
+        refreshCodes(false);
+        let savedLineId = localStorage.getItem("lineOaId");
+        if(savedLineId) document.getElementById('line-oa-id').value = savedLineId;
+    });
+
     function refreshCodes(silent = false) {
         if(!silent) showToast("⏳ 正在與雲端核對最新資料...");
         fetch(`${GAS_URL}?mode=getProducts&t=${new Date().getTime()}`)
             .then(res => res.json())
             .then(data => {
                 usedCodes.clear(); 
-                
                 let setIdx = data.findIndex(p => p.id === '_SITE_SETTINGS_');
                 if (setIdx !== -1) {
                     try {
                         siteSettings = JSON.parse(data[setIdx].img) || {};
                         if (siteSettings.exchangeRates) {
                             exchangeRates = siteSettings.exchangeRates;
-                            
                             document.getElementById('r1-lim').value = exchangeRates[0].limit;
                             document.getElementById('r1-rate').value = exchangeRates[0].rate;
                             document.getElementById('r2-lim').value = exchangeRates[1].limit;
@@ -220,29 +266,20 @@
                             document.getElementById('r4-rate').value = exchangeRates[3].rate;
                             document.getElementById('r5-rate').value = exchangeRates[4].rate;
                         }
-                    } catch(e) {
-                        console.error("解析設定檔失敗:", e);
-                    }
+                    } catch(e) {}
                     data.splice(setIdx, 1);
                 }
-
-                data.forEach(p => {
-                    if (p.id) usedCodes.add(String(p.id).toUpperCase());
-                });
+                data.forEach(p => { if (p.id) usedCodes.add(String(p.id).toUpperCase()); });
                 if(!silent) showToast("✅ 雲端資料已同步完成！");
-            })
-            .catch(err => {
-                console.error("載入失敗:", err);
+            }).catch(err => {
                 if(!silent) showToast("⚠️ 資料載入失敗，請檢查網路");
             });
     }
 
-    window.addEventListener('DOMContentLoaded', () => refreshCodes(false));
-
     function getNextAvailableCode() {
         let localUsed = new Set(usedCodes);
-        badgeHistory.forEach(b => {
-             if (b.code) localUsed.add(String(b.code).toUpperCase());
+        imageFiles.forEach(imgObj => {
+            imgObj.badges.forEach(b => { if (b.code) localUsed.add(String(b.code).toUpperCase()); });
         });
 
         const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -250,9 +287,7 @@
             let letter = letters[i];
             for (let num = 1; num <= 999; num++) {
                 let code = letter + num.toString().padStart(3, '0');
-                if (!localUsed.has(code)) {
-                    return code; 
-                }
+                if (!localUsed.has(code)) return code; 
             }
         }
         return "Z999"; 
@@ -265,8 +300,11 @@
 
     function updateRates(btn) {
         let originalBtnText = btn.innerText;
-        btn.innerText = "⏳ 儲存並同步至雲端...";
+        btn.innerText = "⏳ 儲存設定中...";
         btn.disabled = true;
+
+        let oaId = document.getElementById('line-oa-id').value.trim();
+        if(oaId) localStorage.setItem("lineOaId", oaId);
 
         exchangeRates[0].limit = parseFloat(document.getElementById('r1-lim').value) || 1000;
         exchangeRates[0].rate = parseFloat(document.getElementById('r1-rate').value) || 0.3;
@@ -279,28 +317,18 @@
         exchangeRates[4].limit = 9999999; 
         exchangeRates[4].rate = parseFloat(document.getElementById('r5-rate').value) || 0.23;
 
-        badgeHistory.forEach(b => {
-            b.twd = calculateTWD(b.jpy);
+        imageFiles.forEach(imgObj => {
+            imgObj.badges.forEach(b => { b.twd = calculateTWD(b.jpy); });
         });
-        
-        redrawCanvas();
+        if (currentImgIndex !== -1) redrawCanvas();
         
         siteSettings.exchangeRates = exchangeRates;
         fetch(GAS_URL, { 
             method: "POST", 
-            body: JSON.stringify({ 
-                action: "updateProduct", 
-                data: { id: "_SITE_SETTINGS_", name: "系統設定", price: 0, img: JSON.stringify(siteSettings) } 
-            }) 
-        })
-        .then(() => {
-            showToast("✅ 匯率設定已儲存並套用，與網站雙向同步！");
-        })
-        .catch(err => {
-            console.error("同步設定失敗:", err);
-            showToast("⚠️ 匯率設定已套用，但雲端同步失敗！");
-        })
-        .finally(() => {
+            body: JSON.stringify({ action: "updateProduct", data: { id: "_SITE_SETTINGS_", name: "系統設定", price: 0, img: JSON.stringify(siteSettings) } }) 
+        }).then(() => {
+            showToast("✅ 設定已儲存並套用！");
+        }).finally(() => {
             btn.innerText = originalBtnText;
             btn.disabled = false;
             toggleSettings();
@@ -308,51 +336,106 @@
     }
 
     function changeMode(mode) { currentMode = mode; }
-
     function calculateTWD(jpy) {
         let val = parseFloat(jpy) || 0;
         let rate = exchangeRates[exchangeRates.length - 1].rate;
-        
         for (let i = 0; i < exchangeRates.length; i++) {
-            if (val <= exchangeRates[i].limit) {
-                rate = exchangeRates[i].rate;
-                break;
-            }
+            if (val <= exchangeRates[i].limit) { rate = exchangeRates[i].rate; break; }
         }
         return Math.ceil((val * rate) / 10) * 10;
     }
 
-    function handleImageFile(e) {
-        let reader = new FileReader();
-        reader.onload = function(event) { 
-            img.onload = function() { initCanvas(); }; 
-            img.src = event.target.result; 
+    // 🌟 多圖上傳處理 (限制 4 張)
+    document.getElementById('image-loader').addEventListener('change', function(e) {
+        let files = Array.from(e.target.files);
+        if(files.length === 0) return;
+        
+        if (files.length > 4) {
+            alert("⚠️ 一次最多只能處理 4 張照片喔！系統已自動為您保留前 4 張。");
+            files = files.slice(0, 4);
         }
-        if(e.target.files[0]) {
-            reader.readAsDataURL(e.target.files[0]);
-        }
+        
+        showToast("⏳ 載入圖片中...");
+        
+        let loadedCount = 0;
+        files.forEach(file => {
+            let reader = new FileReader();
+            reader.onload = function(event) { 
+                let imgObj = new Image();
+                imgObj.onload = function() {
+                    imageFiles.push({
+                        fileDataUrl: event.target.result,
+                        imgElement: imgObj,
+                        badges: []
+                    });
+                    loadedCount++;
+                    if(loadedCount === files.length) {
+                        renderThumbnailStrip();
+                        if (currentImgIndex === -1) switchImage(imageFiles.length - files.length); // 切換到剛上傳的第一張
+                        showToast(`✅ 成功載入 ${files.length} 張圖片`);
+                    }
+                };
+                imgObj.src = event.target.result; 
+            };
+            reader.readAsDataURL(file);
+        });
         e.target.value = '';
-    }
+    });
 
-    document.getElementById('image-loader').addEventListener('change', handleImageFile);
-    document.getElementById('camera-loader').addEventListener('change', handleImageFile);
-
+    // 支援貼上圖片
     document.addEventListener('paste', function(e) {
         let items = e.clipboardData.items;
         for (let item of items) {
             if (item.type.indexOf('image') !== -1) {
                 let blob = item.getAsFile();
                 let reader = new FileReader();
-                reader.onload = function(event) { img.onload = function() { initCanvas(); }; img.src = event.target.result; };
+                reader.onload = function(event) { 
+                    let imgObj = new Image();
+                    imgObj.onload = function() {
+                        imageFiles.push({ fileDataUrl: event.target.result, imgElement: imgObj, badges: [] });
+                        renderThumbnailStrip();
+                        switchImage(imageFiles.length - 1);
+                    };
+                    imgObj.src = event.target.result; 
+                };
                 reader.readAsDataURL(blob);
                 break;
             }
         }
     });
 
-    function initCanvas() {
-        // ⭐ 優化 1：降低圖片解析度，加速處理與上傳
-        const MAX_DIMENSION = 640; 
+    function renderThumbnailStrip() {
+        let strip = document.getElementById('thumbnail-strip');
+        if (imageFiles.length === 0) {
+            strip.innerHTML = '<p style="margin: 0 auto; color: #a0aec0; font-size: 14px; font-weight: bold;">目前尚無圖片，請點擊上方上傳</p>';
+            return;
+        }
+
+        let html = '';
+        imageFiles.forEach((obj, idx) => {
+            let activeClass = (idx === currentImgIndex) ? 'active' : '';
+            let hasBadgesClass = (obj.badges.length > 0) ? 'has-badges' : '';
+            html += `
+                <div class="thumbnail-wrap ${activeClass} ${hasBadgesClass}" onclick="switchImage(${idx})">
+                    <img src="${obj.fileDataUrl}">
+                    <div class="badge-count">${obj.badges.length}</div>
+                </div>
+            `;
+        });
+        strip.innerHTML = html;
+    }
+
+    function switchImage(idx) {
+        if (idx < 0 || idx >= imageFiles.length) return;
+        currentImgIndex = idx;
+        renderThumbnailStrip();
+        initCanvasForCurrentImg();
+    }
+
+    function initCanvasForCurrentImg() {
+        if (currentImgIndex === -1) return;
+        const MAX_DIMENSION = 720;
+        let img = imageFiles[currentImgIndex].imgElement;
         let finalWidth = img.width;
         let finalHeight = img.height;
 
@@ -366,27 +449,107 @@
         canvas.height = finalHeight;
         document.getElementById('placeholder-text').style.display = 'none';
         canvas.style.display = 'block';
-        badgeHistory = [];
         redrawCanvas();
-        
-        refreshCodes(true);
     }
 
+    // 🌟 複製當前畫布到剪貼簿 (適用於電腦/部分手機瀏覽器)
+    function copyCurrentImageToClipboard() {
+        if (currentImgIndex === -1) return alert("請先選擇照片！");
+        try {
+            canvas.toBlob(blob => {
+                const item = new ClipboardItem({ "image/png": blob });
+                navigator.clipboard.write([item]).then(() => {
+                    showToast("✅ 當前圖片已複製到剪貼簿！可直接去 LINE 貼上");
+                }).catch(err => {
+                    // 若瀏覽器不支援 Clipboard API，則彈出長按選單
+                    let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    let resultImg = document.getElementById('export-image-result');
+                    resultImg.src = dataUrl;
+                    document.getElementById('image-export-modal').style.display = 'flex';
+                });
+            }, 'image/png');
+        } catch(e) {
+            let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            let resultImg = document.getElementById('export-image-result');
+            resultImg.src = dataUrl;
+            document.getElementById('image-export-modal').style.display = 'flex';
+        }
+    }
+
+    // 🌟 批次下載所有有處理過的圖片
+    async function downloadAllImages() {
+        if (imageFiles.length === 0) return alert("沒有可下載的圖片！");
+        
+        let validImages = imageFiles.filter(img => img.badges.length > 0);
+        if (validImages.length === 0) validImages = imageFiles; // 若都沒打標籤，就全下載
+
+        showToast(`⏳ 正在批次下載 ${validImages.length} 張圖片...`);
+
+        let originalIndex = currentImgIndex;
+        
+        for (let i = 0; i < imageFiles.length; i++) {
+            if (!validImages.includes(imageFiles[i])) continue;
+
+            switchImage(i); // 切換並重繪畫布
+            await new Promise(r => setTimeout(r, 150)); // 稍微等待確保渲染完成
+            
+            let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            let link = document.createElement('a');
+            link.download = `連線商品_${new Date().getTime()}_${i+1}.jpg`;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        switchImage(originalIndex); // 恢復原本的圖片視角
+        showToast("✅ 批次下載完成！請至手機相簿查看");
+    }
+
+    // 🌟 產生並複製 LINE 專屬圖文連結文案
+    function generateLineCopy() {
+        let oaId = document.getElementById('line-oa-id').value.trim();
+        if (!oaId) {
+            toggleSettings();
+            return alert("⚠️ 請先在設定面板中輸入您的 LINE 官方帳號 ID (例如 @798igrjf)");
+        }
+
+        let greetingText = document.getElementById('promo-text').value.trim();
+        let finalText = greetingText ? greetingText + "\n\n" : "";
+        let totalItems = 0;
+
+        imageFiles.forEach(imgObj => {
+            if (imgObj.badges.length > 0) {
+                imgObj.badges.forEach(b => {
+                    let rawMsg = `${b.code} +1`;
+                    let encodedMsg = encodeURIComponent(rawMsg);
+                    let url = `https://line.me/R/oaMessage/${oaId}/?${encodedMsg}`;
+                    finalText += `🏷️ ${b.code}  NT$${b.twd}\n👉 點擊自動+1: ${url}\n\n`;
+                    totalItems++;
+                });
+            }
+        });
+
+        if (totalItems === 0) return alert("⚠️ 目前尚未為任何圖片打上標籤代碼！");
+
+        document.getElementById('final-copy-text').value = finalText;
+        document.getElementById('text-export-modal').style.display = 'flex';
+
+        navigator.clipboard.writeText(finalText).then(() => {
+            showToast("✅ 文案已成功複製到剪貼簿！可以去 LINE 貼上了");
+        }).catch(err => {
+            console.error("複製失敗:", err);
+            document.getElementById('final-copy-text').select();
+        });
+    }
+
+    // 畫布點擊邏輯
     function getPointerPos(e) {
         const rect = canvas.getBoundingClientRect();
-        let clientX = e.clientX;
-        let clientY = e.clientY;
-        
-        if (e.touches && e.touches.length > 0) {
-            clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
-        } else if (e.changedTouches && e.changedTouches.length > 0) {
-            clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
-        }
-        
-        return { 
-            x: (clientX - rect.left) * (canvas.width / rect.width), 
-            y: (clientY - rect.top) * (canvas.height / rect.height) 
-        };
+        let clientX = e.clientX; let clientY = e.clientY;
+        if (e.touches && e.touches.length > 0) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; } 
+        else if (e.changedTouches && e.changedTouches.length > 0) { clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY; }
+        return { x: (clientX - rect.left) * (canvas.width / rect.width), y: (clientY - rect.top) * (canvas.height / rect.height) };
     }
 
     function getBadgeHitbox(b) {
@@ -395,23 +558,16 @@
         let sf = document.getElementById('size-slider').value;
         let fontSize = Math.max(14, Math.round((canvas.width / 1000) * sf * 1.5));
         let fontStack = "'Comic Sans MS', 'Chalkboard SE', 'Fredoka One', 'Marker Felt', sans-serif";
-        
         ctx.font = `bold ${fontSize}px ${fontStack}`;
         let textWidth = ctx.measureText(text).width;
-        
-        let paddingX = fontSize * 1.5;
-        let paddingY = fontSize * 1.0;
-        let contentWidth = textWidth + paddingX * 2.2;
-        let contentHeight = fontSize + paddingY * 1.5;
-        
-        let finalBoxWidth = Math.max(contentWidth, b.cw || 0);
-        let finalBoxHeight = Math.max(contentHeight, b.ch || 0);
-
+        let paddingX = fontSize * 1.5; let paddingY = fontSize * 1.0;
+        let contentWidth = textWidth + paddingX * 2.2; let contentHeight = fontSize + paddingY * 1.5;
+        let finalBoxWidth = Math.max(contentWidth, b.cw || 0); let finalBoxHeight = Math.max(contentHeight, b.ch || 0);
         return { left: b.x - finalBoxWidth / 2, right: b.x + finalBoxWidth / 2, top: b.y - finalBoxHeight / 2, bottom: b.y + finalBoxHeight / 2 };
     }
 
     function parseAndAddBadge(input, x, y, autoCode, cw = 0, ch = 0) {
-        if (!input) return;
+        if (!input || currentImgIndex === -1) return;
         let code = "", jpy = 0;
         input = input.trim().replace(/\s+/g, ' ');
         let parts = input.split(' ');
@@ -429,17 +585,20 @@
 
         if (jpy <= 0) return alert("⚠️ 請輸入有效的日幣金額！");
         let twd = calculateTWD(jpy);
-        badgeHistory.push({ x, y, code, jpy, twd, cw, ch });
+        imageFiles[currentImgIndex].badges.push({ x, y, code, jpy, twd, cw, ch });
         redrawCanvas();
+        renderThumbnailStrip(); 
     }
 
     function triggerDoubleTap(pos) {
-        for (let i = badgeHistory.length - 1; i >= 0; i--) {
-            let box = getBadgeHitbox(badgeHistory[i]);
+        if (currentImgIndex === -1) return false;
+        let badges = imageFiles[currentImgIndex].badges;
+        for (let i = badges.length - 1; i >= 0; i--) {
+            let box = getBadgeHitbox(badges[i]);
             if (pos.x >= box.left && pos.x <= box.right && pos.y >= box.top && pos.y <= box.bottom) {
-                let b = badgeHistory[i];
+                let b = badges[i];
                 setTimeout(() => {
-                    let input = prompt(`✏️ 請修改【日幣價格】\n(目前代碼：${b.code}，若要連代碼一起改，請輸入: 新代碼 日幣)`, b.jpy);
+                    let input = prompt(`✏️ 請修改【日幣價格】\n(目前代碼：${b.code}，若要改代碼，請輸入: 新代碼 日幣)`, b.jpy);
                     if (input) {
                         let code = b.code, jpy = 0;
                         let parts = input.trim().replace(/\s+/g, ' ').split(' ');
@@ -448,9 +607,7 @@
                             for (let k = parts.length - 1; k >= 1; k--) {
                                 if (!isNaN(parseInt(parts[k]))) { jpy = parseInt(parts[k]); break; }
                             }
-                        } else { 
-                            jpy = parseInt(parts[0]) || 0; 
-                        }
+                        } else { jpy = parseInt(parts[0]) || 0; }
                         if (jpy > 0) { b.code = code; b.jpy = jpy; b.twd = calculateTWD(jpy); redrawCanvas(); }
                     }
                 }, 50);
@@ -461,7 +618,7 @@
     }
 
     function handlePointerDown(e) {
-        if (!img.src) return;
+        if (currentImgIndex === -1) return;
         let currentTime = new Date().getTime();
         let tapLength = currentTime - lastTapTime;
         const pos = getPointerPos(e);
@@ -472,27 +629,28 @@
         lastTapTime = currentTime;
         startX = pos.x; startY = pos.y; isClick = true;
 
-        for (let i = badgeHistory.length - 1; i >= 0; i--) {
-            let box = getBadgeHitbox(badgeHistory[i]);
+        let badges = imageFiles[currentImgIndex].badges;
+        for (let i = badges.length - 1; i >= 0; i--) {
+            let box = getBadgeHitbox(badges[i]);
             if (pos.x >= box.left && pos.x <= box.right && pos.y >= box.top && pos.y <= box.bottom) {
                 isDragging = true; dragTargetIndex = i; 
-                dragOffsetX = pos.x - badgeHistory[i].x; dragOffsetY = pos.y - badgeHistory[i].y;
+                dragOffsetX = pos.x - badges[i].x; dragOffsetY = pos.y - badges[i].y;
                 return;
             }
         }
-
         if (currentMode === 'cover') { isDrawingBox = true; boxCurrentX = pos.x; boxCurrentY = pos.y; }
     }
 
     function handlePointerMove(e) {
-        if (!img.src) return;
+        if (currentImgIndex === -1) return;
         if (isDragging || isDrawingBox) { e.preventDefault(); }
         const pos = getPointerPos(e);
+        let badges = imageFiles[currentImgIndex].badges;
         
         if (isDragging && dragTargetIndex !== -1) {
             isClick = false; 
-            badgeHistory[dragTargetIndex].x = pos.x - dragOffsetX; 
-            badgeHistory[dragTargetIndex].y = pos.y - dragOffsetY; 
+            badges[dragTargetIndex].x = pos.x - dragOffsetX; 
+            badges[dragTargetIndex].y = pos.y - dragOffsetY; 
             redrawCanvas();
         } 
         else if (isDrawingBox) {
@@ -509,7 +667,7 @@
     }
 
     function handlePointerUp(e) {
-        if (!img.src) return;
+        if (currentImgIndex === -1) return;
         if (isDragging) { isDragging = false; dragTargetIndex = -1; } 
         else if (isDrawingBox) {
             isDrawingBox = false;
@@ -561,32 +719,21 @@
     });
 
     function redrawCanvas() {
+        if (currentImgIndex === -1) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height); 
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height); 
-        badgeHistory.forEach(b => { drawPriceBadge(b.x, b.y, b.code, b.jpy, b.twd, b.cw, b.ch); });
+        ctx.drawImage(imageFiles[currentImgIndex].imgElement, 0, 0, canvas.width, canvas.height); 
+        imageFiles[currentImgIndex].badges.forEach(b => { drawPriceBadge(b.x, b.y, b.code, b.jpy, b.twd, b.cw, b.ch); });
     }
 
     function drawHeart(ctx, x, y, size, rotationDeg = 0) {
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(rotationDeg * Math.PI / 180);
-        ctx.scale(size/100, size/100);
-        ctx.beginPath();
-        ctx.moveTo(50, 30);
-        ctx.bezierCurveTo(50, -10, 0, -10, 0, 30);
-        ctx.bezierCurveTo(0, 60, 50, 85, 50, 100);
-        ctx.bezierCurveTo(50, 85, 100, 60, 100, 30);
-        ctx.bezierCurveTo(100, -10, 50, -10, 50, 30);
-        ctx.fillStyle = "#b73229"; 
-        ctx.fill();
-        ctx.restore();
+        ctx.save(); ctx.translate(x, y); ctx.rotate(rotationDeg * Math.PI / 180); ctx.scale(size/100, size/100);
+        ctx.beginPath(); ctx.moveTo(50, 30); ctx.bezierCurveTo(50, -10, 0, -10, 0, 30); ctx.bezierCurveTo(0, 60, 50, 85, 50, 100);
+        ctx.bezierCurveTo(50, 85, 100, 60, 100, 30); ctx.bezierCurveTo(100, -10, 50, -10, 50, 30);
+        ctx.fillStyle = "#b73229"; ctx.fill(); ctx.restore();
     }
 
     function drawPaw(ctx, x, y, size, rotationDeg = 0) {
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(rotationDeg * Math.PI / 180);
-        ctx.scale(size/100, size/100);
+        ctx.save(); ctx.translate(x, y); ctx.rotate(rotationDeg * Math.PI / 180); ctx.scale(size/100, size/100);
         ctx.fillStyle = "#5c4033"; 
         ctx.beginPath(); ctx.ellipse(50, 70, 22, 18, 0, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.ellipse(25, 45, 10, 14, -Math.PI/6, 0, Math.PI*2); ctx.fill();
@@ -606,94 +753,53 @@
         
         ctx.font = `bold ${fontSize}px ${fontStack}`;
         let textWidth = ctx.measureText(text).width;
+        let paddingX = fontSize * 1.5; let paddingY = fontSize * 1.0;
+        let contentWidth = textWidth + paddingX * 2.2; let contentHeight = fontSize + paddingY * 1.5;
+        let finalBoxWidth = Math.max(contentWidth, cw); let finalBoxHeight = Math.max(contentHeight, ch);
         
-        let paddingX = fontSize * 1.5; 
-        let paddingY = fontSize * 1.0;
-        let contentWidth = textWidth + paddingX * 2.2; 
-        let contentHeight = fontSize + paddingY * 1.5;
-        
-        let finalBoxWidth = Math.max(contentWidth, cw);
-        let finalBoxHeight = Math.max(contentHeight, ch);
-        
-        let left = x - finalBoxWidth / 2;
-        let top = y - finalBoxHeight / 2;
-
-        let holeX = left + finalBoxWidth - fontSize * 1.2;
-        let holeY = top + finalBoxHeight / 2;
+        let left = x - finalBoxWidth / 2; let top = y - finalBoxHeight / 2;
+        let holeX = left + finalBoxWidth - fontSize * 1.2; let holeY = top + finalBoxHeight / 2;
         let eyeletRadius = fontSize * 0.35;
 
-        ctx.beginPath();
-        ctx.moveTo(holeX, holeY - eyeletRadius);
+        ctx.beginPath(); ctx.moveTo(holeX, holeY - eyeletRadius);
         ctx.bezierCurveTo(holeX + fontSize*3, holeY - fontSize*1.5, holeX + fontSize*4, holeY + fontSize*0.5, holeX, holeY + eyeletRadius);
-        ctx.lineWidth = Math.max(3, fontSize * 0.2);
-        ctx.strokeStyle = "#c0a887"; 
-        ctx.stroke();
+        ctx.lineWidth = Math.max(3, fontSize * 0.2); ctx.strokeStyle = "#c0a887"; ctx.stroke();
         
-        ctx.beginPath();
-        ctx.moveTo(holeX, holeY - eyeletRadius);
+        ctx.beginPath(); ctx.moveTo(holeX, holeY - eyeletRadius);
         ctx.bezierCurveTo(holeX + fontSize*3, holeY - fontSize*1.5, holeX + fontSize*4, holeY + fontSize*0.5, holeX, holeY + eyeletRadius);
-        ctx.lineWidth = Math.max(3, fontSize * 0.2);
-        ctx.strokeStyle = "#7a5c40"; 
-        ctx.setLineDash([fontSize * 0.3, fontSize * 0.3]);
-        ctx.stroke();
+        ctx.lineWidth = Math.max(3, fontSize * 0.2); ctx.strokeStyle = "#7a5c40"; ctx.setLineDash([fontSize * 0.3, fontSize * 0.3]); ctx.stroke();
         ctx.setLineDash([]); 
 
-        ctx.shadowColor = "rgba(0, 0, 0, 0.4)"; 
-        ctx.shadowBlur = fontSize * 0.4;
-        ctx.shadowOffsetY = fontSize * 0.2;
+        ctx.shadowColor = "rgba(0, 0, 0, 0.4)"; ctx.shadowBlur = fontSize * 0.4; ctx.shadowOffsetY = fontSize * 0.2;
         ctx.fillStyle = "#d3b38c"; 
 
         ctx.beginPath();
-        let sX = finalBoxWidth / 8;
-        let sY = finalBoxHeight / 5;
-        let v = fontSize * 0.1; 
-        
+        let sX = finalBoxWidth / 8; let sY = finalBoxHeight / 5; let v = fontSize * 0.1; 
         ctx.moveTo(left, top);
         ctx.lineTo(left + sX*1, top + v); ctx.lineTo(left + sX*2, top - v);
         ctx.lineTo(left + sX*3, top + v); ctx.lineTo(left + sX*4, top - v);
         ctx.lineTo(left + sX*5, top + v); ctx.lineTo(left + sX*6, top - v);
         ctx.lineTo(left + sX*7, top + v); ctx.lineTo(left + finalBoxWidth, top);
-        
         ctx.lineTo(left + finalBoxWidth - v, top + sY*1); ctx.lineTo(left + finalBoxWidth + v, top + sY*2);
         ctx.lineTo(left + finalBoxWidth - v, top + sY*3); ctx.lineTo(left + finalBoxWidth + v, top + sY*4);
         ctx.lineTo(left + finalBoxWidth, top + finalBoxHeight);
-        
         ctx.lineTo(left + sX*7, top + finalBoxHeight - v); ctx.lineTo(left + sX*6, top + finalBoxHeight + v);
         ctx.lineTo(left + sX*5, top + finalBoxHeight - v); ctx.lineTo(left + sX*4, top + finalBoxHeight + v);
         ctx.lineTo(left + sX*3, top + finalBoxHeight - v); ctx.lineTo(left + sX*2, top + finalBoxHeight + v);
         ctx.lineTo(left + sX*1, top + finalBoxHeight - v); ctx.lineTo(left, top + finalBoxHeight);
-        
         ctx.lineTo(left + v, top + sY*4); ctx.lineTo(left - v, top + sY*3);
         ctx.lineTo(left + v, top + sY*2); ctx.lineTo(left - v, top + sY*1);
-        ctx.closePath();
-        ctx.fill();
+        ctx.closePath(); ctx.fill();
 
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetY = 0;
-        ctx.strokeStyle = "rgba(92, 64, 51, 0.2)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(holeX, holeY, eyeletRadius * 1.6, 0, Math.PI * 2);
-        ctx.fillStyle = "#c2a478";
-        ctx.fill();
-        ctx.lineWidth = Math.max(1, fontSize * 0.05);
-        ctx.strokeStyle = "#8b7152";
-        ctx.stroke();
+        ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.strokeStyle = "rgba(92, 64, 51, 0.2)"; ctx.lineWidth = 1; ctx.stroke();
+        ctx.beginPath(); ctx.arc(holeX, holeY, eyeletRadius * 1.6, 0, Math.PI * 2);
+        ctx.fillStyle = "#c2a478"; ctx.fill(); ctx.lineWidth = Math.max(1, fontSize * 0.05); ctx.strokeStyle = "#8b7152"; ctx.stroke();
         
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(holeX, holeY, eyeletRadius, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
+        ctx.save(); ctx.beginPath(); ctx.arc(holeX, holeY, eyeletRadius, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(imageFiles[currentImgIndex].imgElement, 0, 0, canvas.width, canvas.height); ctx.restore();
         
-        ctx.beginPath();
-        ctx.arc(holeX, holeY, eyeletRadius, 0, Math.PI * 2);
-        ctx.lineWidth = Math.max(1, fontSize * 0.1);
-        ctx.strokeStyle = "rgba(0,0,0,0.3)";
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(holeX, holeY, eyeletRadius, 0, Math.PI * 2);
+        ctx.lineWidth = Math.max(1, fontSize * 0.1); ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.stroke();
 
         drawHeart(ctx, holeX - fontSize * 1.3, holeY - fontSize * 0.3, fontSize * 0.35, -15);
         drawPaw(ctx, holeX - fontSize * 0.9, holeY + fontSize * 0.6, fontSize * 0.5, -20);
@@ -702,219 +808,79 @@
         let textStartX = left + (finalBoxWidth - fontSize * 1.2) / 2;
         let textStartY = top + (finalBoxHeight - fontSize) / 2 + fontSize * 0.05; 
         
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillStyle = "#462e1b"; 
-        
-        ctx.font = `bold ${fontSize}px ${fontStack}`;
-        ctx.fillText(text, textStartX, textStartY);
-        
+        ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillStyle = "#462e1b"; 
+        ctx.font = `bold ${fontSize}px ${fontStack}`; ctx.fillText(text, textStartX, textStartY);
         ctx.restore();
     }
 
+    // 🌟 批次同步所有含有標籤的照片到後台
     async function syncAllToBackend(btn) {
-        let validBadges = badgeHistory.filter(b => b.code !== "");
-        if (validBadges.length === 0) return showToast("⚠️ 目前沒有含有代碼的標籤可以同步！");
+        let validImages = imageFiles.filter(img => img.badges.length > 0);
+        if (validImages.length === 0) return showToast("⚠️ 目前沒有含有代碼的相片可以同步！");
 
         let originalBtnText = btn.innerText;
-        btn.innerText = "⏳ 壓縮與上傳照片中...";
+        btn.innerText = "⏳ 批次同步中，請勿關閉網頁...";
         btn.disabled = true; 
+        
         let successCount = 0;
-        let imgUrl = "";
+        let originalIndex = currentImgIndex;
 
         try {
-            try {
-                // ⭐ 優化 2：進一步壓縮品質至 0.65 (原為 0.8)，加速上傳速度
-                let base64Image = canvas.toDataURL('image/jpeg', 0.65).split(',')[1];
-                let formData = new FormData();
-                formData.append("image", base64Image);
+            for (let i = 0; i < validImages.length; i++) {
+                let imgObj = validImages[i];
+                let fileIndex = imageFiles.indexOf(imgObj);
+                switchImage(fileIndex);
+                await new Promise(r => setTimeout(r, 100)); // 確保畫布重繪
                 
-                let imgbbRes = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_API_KEY, {
-                    method: "POST",
-                    body: formData
-                });
-                let imgbbData = await imgbbRes.json();
-                if (imgbbData.success) {
-                    imgUrl = imgbbData.data.url; 
-                } else {
-                    console.error("照片上傳 ImgBB 失敗:", imgbbData);
-                }
-            } catch(e) {
-                console.error("照片上傳例外錯誤:", e);
-                showToast("⚠️ 照片上傳失敗，將僅同步價格");
-            }
-
-            btn.innerText = "⏳ 寫入雲端中...";
-
-            // ⭐ 優化 3：利用 Promise.all 同時並行寫入 GAS (加速 3 倍以上)
-            let syncPromises = validBadges.map(async (b) => {
+                let imgUrl = "";
                 try {
-                    let res = await fetch(GAS_URL, { 
-                        method: "POST", 
-                        body: JSON.stringify({ 
-                            action: "syncPriceFromTool", 
-                            productCode: b.code, 
-                            newPrice: b.twd,
-                            imgUrl: imgUrl 
-                        }) 
-                    });
-                    if(await res.text() === "success") {
-                        usedCodes.add(String(b.code).toUpperCase()); 
-                        return true;
-                    }
-                } catch (err) {
-                    console.error(`代碼 ${b.code} 同步失敗:`, err);
+                    let base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+                    let formData = new FormData();
+                    formData.append("image", base64Image);
+                    
+                    let imgbbRes = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_API_KEY, { method: "POST", body: formData });
+                    let imgbbData = await imgbbRes.json();
+                    if (imgbbData.success) imgUrl = imgbbData.data.url; 
+                } catch(e) {
+                    console.error("相片上傳失敗:", e);
                 }
-                return false;
-            });
 
-            // 等待所有並行請求完成
-            let results = await Promise.all(syncPromises);
-            successCount = results.filter(r => r === true).length;
+                // 批次寫入該圖片上的所有標籤
+                for (let b of imgObj.badges) {
+                    try {
+                        let res = await fetch(GAS_URL, { 
+                            method: "POST", 
+                            body: JSON.stringify({ action: "syncPriceFromTool", productCode: b.code, newPrice: b.twd, imgUrl: imgUrl }) 
+                        });
+                        if(await res.text() === "success") {
+                            successCount++;
+                            usedCodes.add(String(b.code).toUpperCase()); 
+                        }
+                    } catch (err) {
+                        console.error("單筆寫入失敗:", err);
+                    }
+                }
+            }
             
             if(successCount > 0) {
-                showToast(`✅ 同步完成！照片與 ${successCount} 筆商品已更新。`);
+                showToast(`✅ 同步完成！共新增/更新了 ${successCount} 筆商品。`);
                 refreshCodes(true);
             } else {
                 showToast(`❌ 同步失敗，請檢查網路連線。`);
             }
         } finally {
+            switchImage(originalIndex);
             btn.innerText = originalBtnText;
             btn.disabled = false;
         }
     }
 
-    async function updateSpecificCodeImage(btn) {
-        if (!img.src) return showToast("⚠️ 請先載入或拍攝一張正確的照片！");
-        
-        let targetCode = prompt("🖼️ 請輸入要修正覆蓋的「商品代碼」\n(例如: A001)：");
-        if (!targetCode) return;
-        targetCode = targetCode.trim().toUpperCase();
-
-        let matchedBadge = badgeHistory.find(b => b.code.toUpperCase() === targetCode);
-        
-        if (!matchedBadge) {
-            alert(`⚠️ 畫面上找不到代碼為【${targetCode}】的標籤！\n請先在照片上點擊建立該代碼的新標價，系統才能同時更新價格與照片。`);
-            return;
-        }
-
-        if (!confirm(`確定要將目前的照片與新價格 (NT$${matchedBadge.twd}) 同步更新給代碼【${targetCode}】嗎？\n(此操作會覆蓋雲端上的原紀錄)`)) return;
-
-        let originalBtnText = btn.innerText;
-        btn.innerText = "⏳ 壓縮與上傳照片中...";
-        btn.disabled = true;
-
-        try {
-            // ⭐ 優化：同樣降低特定覆蓋圖片的容量
-            let base64Image = canvas.toDataURL('image/jpeg', 0.65).split(',')[1];
-            let formData = new FormData();
-            formData.append("image", base64Image);
-            
-            let imgbbRes = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_API_KEY, {
-                method: "POST",
-                body: formData
-            });
-            let imgbbData = await imgbbRes.json();
-            
-            if (!imgbbData.success) {
-                throw new Error("ImgBB上傳失敗");
-            }
-            let imgUrl = imgbbData.data.url;
-
-            btn.innerText = "⏳ 更新雲端...";
-
-            let res = await fetch(GAS_URL, { 
-                method: "POST", 
-                body: JSON.stringify({ 
-                    action: "syncPriceFromTool", 
-                    productCode: targetCode, 
-                    newPrice: matchedBadge.twd,
-                    imgUrl: imgUrl 
-                }) 
-            });
-            
-            let resultText = await res.text();
-            if(resultText === "success") {
-                showToast(`✅ 代碼 ${targetCode} 照片與價格修正成功！`);
-            } else {
-                showToast(`✅ 修正請求已送出！`);
-            }
-        } catch (err) {
-            console.error("更新失敗:", err);
-            showToast("❌ 修正失敗，請檢查網路連線。");
-        } finally {
-            btn.innerText = originalBtnText;
-            btn.disabled = false;
-        }
-    }
-
-    function copyImageToClipboard() {
-        if (!img.src) return alert("請先選擇照片！");
-        
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8); 
-        
-        if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
-            try {
-                fetch(dataUrl).then(res => res.blob()).then(blob => {
-                    const file = new File([blob], `標價圖_${new Date().getTime()}.jpg`, { type: 'image/jpeg' });
-                    navigator.share({ title: '連線商品標價圖', files: [file] });
-                    closeExportModal();
-                });
-                return; 
-            } catch (err) {}
-        }
-        
-        let resultImg = document.getElementById('export-image-result');
-        resultImg.src = dataUrl;
-        document.getElementById('image-export-modal').style.display = 'flex';
-    }
-
-    function closeExportModal() {
-        document.getElementById('image-export-modal').style.display = 'none';
-    }
-
-    function showToast(msg) {
-        let toast = document.getElementById('toast');
-        toast.innerText = msg;
-        toast.style.display = 'block';
-        setTimeout(() => { toast.style.display = 'none'; }, 3000);
-    }
-
-    function undoLastBadge() { if (badgeHistory.length > 0) { badgeHistory.pop(); redrawCanvas(); } }
-    
-    function downloadImage() {
-        if (!img.src) return alert("請先選擇照片！");
-        
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-        
-        if (isMobile && navigator.share) {
-            fetch(dataUrl).then(res => res.blob()).then(blob => {
-                const file = new File([blob], `標價圖_${new Date().getTime()}.jpg`, { type: 'image/jpeg' });
-                navigator.share({ title: '儲存標價圖', files: [file] }).catch(() => {
-                    let resultImg = document.getElementById('export-image-result');
-                    resultImg.src = dataUrl;
-                    document.getElementById('image-export-modal').style.display = 'flex';
-                });
-            }).catch(() => {
-                let resultImg = document.getElementById('export-image-result');
-                resultImg.src = dataUrl;
-                document.getElementById('image-export-modal').style.display = 'flex';
-            });
-        } else {
-            try {
-                let link = document.createElement('a');
-                link.download = `標價圖_${new Date().getTime()}.jpg`; 
-                link.href = dataUrl; 
-                document.body.appendChild(link); 
-                link.click();
-                document.body.removeChild(link);
-            } catch (err) {
-                let resultImg = document.getElementById('export-image-result');
-                resultImg.src = dataUrl;
-                document.getElementById('image-export-modal').style.display = 'flex';
-            }
-        }
+    function undoLastBadge() { 
+        if (currentImgIndex !== -1 && imageFiles[currentImgIndex].badges.length > 0) { 
+            imageFiles[currentImgIndex].badges.pop(); 
+            redrawCanvas(); 
+            renderThumbnailStrip();
+        } 
     }
 </script>
 </body>

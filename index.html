@@ -89,7 +89,7 @@
 <!-- 圖片匯出用的彈窗 -->
 <div id="image-export-modal" class="modal-overlay">
     <div class="modal-content">
-        <span class="close-modal-btn" onclick="document.getElementById('image-export-modal').style.display='none'">×</span>
+        <span class="close-modal-btn" onclick="closeExportModal()">×</span>
         <h3 style="margin: 0; color: #132c4d; font-size: 18px;">👇 請長按下方圖片</h3>
         <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">選擇「拷貝」或「儲存影像」，即可去 LINE 貼上！</p>
         <img id="export-image-result" src="">
@@ -164,14 +164,13 @@
     </h2>
 
     <div class="controls">
-        <!-- 🌟 更新：上限為 4 張的批次上傳按鈕 -->
         <input type="file" id="image-loader" accept="image/*" multiple style="display:none;">
         <button class="btn" onclick="document.getElementById('image-loader').click()" style="background:#2b6cb0;">📁 批次上傳相簿圖片 (上限4張)</button>
 
         <button class="btn btn-secondary" onclick="toggleSettings()">⚙️ 系統設定 (LINE ID/匯率)</button>
         <button class="btn btn-dark" onclick="refreshCodes()">🔄 重整最新代碼</button>
         
-        <!-- 🌟 兩種複製/下載方式 -->
+        <!-- 下載與複製 -->
         <button class="btn btn-warning" onclick="copyCurrentImageToClipboard()">✂️ 複製當前圖片</button>
         <button class="btn btn-success" onclick="downloadAllImages()">💾 批次下載全部圖片</button>
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原標籤</button>
@@ -237,6 +236,20 @@
         { limit: 10000, rate: 0.24 },
         { limit: 9999999, rate: 0.23 } 
     ];
+
+    // 🟢 補齊：顯示通知的函數
+    function showToast(msg) {
+        let toast = document.getElementById('toast');
+        if (!toast) return;
+        toast.innerText = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+
+    // 🟢 補齊：關閉圖片匯出彈窗的函數
+    function closeExportModal() {
+        document.getElementById('image-export-modal').style.display = 'none';
+    }
 
     window.addEventListener('DOMContentLoaded', () => {
         refreshCodes(false);
@@ -345,41 +358,77 @@
         return Math.ceil((val * rate) / 10) * 10;
     }
 
-    // 🌟 多圖上傳處理 (限制 4 張)
+    // 🌟 修正的 iOS 多圖上傳處理 (記憶體極致優化版)
     document.getElementById('image-loader').addEventListener('change', function(e) {
         let files = Array.from(e.target.files);
         if(files.length === 0) return;
         
         if (files.length > 4) {
-            alert("⚠️ 一次最多只能處理 4 張照片喔！系統已自動為您保留前 4 張。");
+            alert("⚠️ 為了確保順暢，一次最多只能處理 4 張照片喔！系統已自動為您保留前 4 張。");
             files = files.slice(0, 4);
         }
         
-        showToast("⏳ 載入圖片中...");
+        showToast("⏳ 正在優化與載入圖片，請稍候...");
         
         let loadedCount = 0;
+        
+        // 幫助函數：確保每個檔案在讀取完成後進行判斷
+        function checkDone() {
+            loadedCount++;
+            if(loadedCount === files.length) {
+                renderThumbnailStrip();
+                if (currentImgIndex === -1) switchImage(imageFiles.length - files.length); // 切換到剛上傳的第一張
+                showToast(`✅ 成功載入 ${files.length} 張圖片`);
+                document.getElementById('image-loader').value = ''; // 讀取完畢才清空
+            }
+        }
+
         files.forEach(file => {
             let reader = new FileReader();
             reader.onload = function(event) { 
                 let imgObj = new Image();
                 imgObj.onload = function() {
-                    imageFiles.push({
-                        fileDataUrl: event.target.result,
-                        imgElement: imgObj,
-                        badges: []
-                    });
-                    loadedCount++;
-                    if(loadedCount === files.length) {
-                        renderThumbnailStrip();
-                        if (currentImgIndex === -1) switchImage(imageFiles.length - files.length); // 切換到剛上傳的第一張
-                        showToast(`✅ 成功載入 ${files.length} 張圖片`);
+                    // 🌟 針對 iPhone 大照片先透過 Canvas 進行壓縮，避免記憶體崩潰
+                    const MAX_SIZE = 1000;
+                    let w = imgObj.width;
+                    let h = imgObj.height;
+
+                    if (w > MAX_SIZE || h > MAX_SIZE) {
+                        let ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
+                        w = Math.round(w * ratio);
+                        h = Math.round(h * ratio);
                     }
+
+                    let tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = w;
+                    tempCanvas.height = h;
+                    let tCtx = tempCanvas.getContext('2d');
+                    tCtx.drawImage(imgObj, 0, 0, w, h);
+                    
+                    // 轉為較小的 Base64，釋放原圖記憶體負擔
+                    let optimizedDataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
+                    let finalImgObj = new Image();
+                    
+                    finalImgObj.onload = function() {
+                        imageFiles.push({
+                            fileDataUrl: optimizedDataUrl,
+                            imgElement: finalImgObj,
+                            badges: []
+                        });
+                        checkDone();
+                    };
+                    finalImgObj.src = optimizedDataUrl;
+                };
+                
+                imgObj.onerror = function() {
+                    console.error("有圖片無法解析");
+                    checkDone(); 
                 };
                 imgObj.src = event.target.result; 
             };
+            reader.onerror = function() { checkDone(); };
             reader.readAsDataURL(file);
         });
-        e.target.value = '';
     });
 
     // 支援貼上圖片
@@ -392,9 +441,23 @@
                 reader.onload = function(event) { 
                     let imgObj = new Image();
                     imgObj.onload = function() {
-                        imageFiles.push({ fileDataUrl: event.target.result, imgElement: imgObj, badges: [] });
-                        renderThumbnailStrip();
-                        switchImage(imageFiles.length - 1);
+                        const MAX_SIZE = 1000;
+                        let w = imgObj.width; let h = imgObj.height;
+                        if (w > MAX_SIZE || h > MAX_SIZE) {
+                            let ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
+                            w = Math.round(w * ratio); h = Math.round(h * ratio);
+                        }
+                        let tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = w; tempCanvas.height = h;
+                        tempCanvas.getContext('2d').drawImage(imgObj, 0, 0, w, h);
+                        let optUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
+                        let finalImg = new Image();
+                        finalImg.onload = function() {
+                            imageFiles.push({ fileDataUrl: optUrl, imgElement: finalImg, badges: [] });
+                            renderThumbnailStrip();
+                            switchImage(imageFiles.length - 1);
+                        };
+                        finalImg.src = optUrl;
                     };
                     imgObj.src = event.target.result; 
                 };
@@ -434,34 +497,26 @@
 
     function initCanvasForCurrentImg() {
         if (currentImgIndex === -1) return;
-        const MAX_DIMENSION = 720;
         let img = imageFiles[currentImgIndex].imgElement;
-        let finalWidth = img.width;
-        let finalHeight = img.height;
-
-        if (finalWidth > MAX_DIMENSION || finalHeight > MAX_DIMENSION) {
-            const ratio = Math.min(MAX_DIMENSION / finalWidth, MAX_DIMENSION / finalHeight);
-            finalWidth = Math.round(finalWidth * ratio);
-            finalHeight = Math.round(finalHeight * ratio);
-        }
-
-        canvas.width = finalWidth;
-        canvas.height = finalHeight;
+        
+        // 由於我們上傳時已經控制過尺寸在 1000px 內，這裡可以直接 1:1 給 Canvas
+        canvas.width = img.width;
+        canvas.height = img.height;
         document.getElementById('placeholder-text').style.display = 'none';
         canvas.style.display = 'block';
         redrawCanvas();
     }
 
-    // 🌟 複製當前畫布到剪貼簿 (適用於電腦/部分手機瀏覽器)
+    // 🌟 複製當前畫布到剪貼簿 
     function copyCurrentImageToClipboard() {
         if (currentImgIndex === -1) return alert("請先選擇照片！");
         try {
             canvas.toBlob(blob => {
+                if(!blob) throw new Error("blob failed");
                 const item = new ClipboardItem({ "image/png": blob });
                 navigator.clipboard.write([item]).then(() => {
                     showToast("✅ 當前圖片已複製到剪貼簿！可直接去 LINE 貼上");
                 }).catch(err => {
-                    // 若瀏覽器不支援 Clipboard API，則彈出長按選單
                     let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                     let resultImg = document.getElementById('export-image-result');
                     resultImg.src = dataUrl;
@@ -476,34 +531,38 @@
         }
     }
 
-    // 🌟 批次下載所有有處理過的圖片
+    // 🌟 批次下載所有有處理過的圖片 (針對 iOS 特殊處理)
     async function downloadAllImages() {
         if (imageFiles.length === 0) return alert("沒有可下載的圖片！");
         
         let validImages = imageFiles.filter(img => img.badges.length > 0);
-        if (validImages.length === 0) validImages = imageFiles; // 若都沒打標籤，就全下載
+        if (validImages.length === 0) validImages = imageFiles; 
 
-        showToast(`⏳ 正在批次下載 ${validImages.length} 張圖片...`);
-
+        showToast(`⏳ 正在準備 ${validImages.length} 張圖片下載...`);
         let originalIndex = currentImgIndex;
         
         for (let i = 0; i < imageFiles.length; i++) {
             if (!validImages.includes(imageFiles[i])) continue;
 
-            switchImage(i); // 切換並重繪畫布
-            await new Promise(r => setTimeout(r, 150)); // 稍微等待確保渲染完成
+            switchImage(i); 
+            await new Promise(r => setTimeout(r, 100)); 
             
             let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            let link = document.createElement('a');
-            link.download = `連線商品_${new Date().getTime()}_${i+1}.jpg`;
-            link.href = dataUrl;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            
+            try {
+                let link = document.createElement('a');
+                link.download = `連線商品_${new Date().getTime()}_${i+1}.jpg`;
+                link.href = dataUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch(e) {
+                console.error("下載遭阻擋", e);
+            }
         }
 
-        switchImage(originalIndex); // 恢復原本的圖片視角
-        showToast("✅ 批次下載完成！請至手機相簿查看");
+        switchImage(originalIndex); 
+        showToast("✅ 批次下載指令已發送！若沒反應建議點選【✂️ 複製當前圖片】一張張貼。");
     }
 
     // 🌟 產生並複製 LINE 專屬圖文連結文案
@@ -750,7 +809,6 @@
         let sf = document.getElementById('size-slider').value;
         let fontSize = Math.max(14, Math.round((canvas.width / 1000) * sf * 1.5));
         let fontStack = "'Comic Sans MS', 'Chalkboard SE', 'Fredoka One', 'Marker Felt', sans-serif";
-        
         ctx.font = `bold ${fontSize}px ${fontStack}`;
         let textWidth = ctx.measureText(text).width;
         let paddingX = fontSize * 1.5; let paddingY = fontSize * 1.0;
@@ -845,7 +903,6 @@
                     console.error("相片上傳失敗:", e);
                 }
 
-                // 批次寫入該圖片上的所有標籤
                 for (let b of imgObj.badges) {
                     try {
                         let res = await fetch(GAS_URL, { 

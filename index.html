@@ -86,13 +86,26 @@
 
 <div id="toast">✅ 同步成功！</div>
 
-<!-- 圖片匯出用的彈窗 -->
+<!-- 單圖匯出用的彈窗 -->
 <div id="image-export-modal" class="modal-overlay">
     <div class="modal-content">
-        <span class="close-modal-btn" onclick="closeExportModal()">×</span>
+        <span class="close-modal-btn" onclick="document.getElementById('image-export-modal').style.display='none'">×</span>
         <h3 style="margin: 0; color: #132c4d; font-size: 18px;">👇 請長按下方圖片</h3>
         <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">選擇「拷貝」或「儲存影像」，即可去 LINE 貼上！</p>
         <img id="export-image-result" src="">
+    </div>
+</div>
+
+<!-- 批次匯出圖片用的彈窗 (解決iOS限制) -->
+<div id="batch-export-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 90%; max-height: 85vh; overflow-y: auto; text-align: center;">
+        <span class="close-modal-btn" onclick="document.getElementById('batch-export-modal').style.display='none'">×</span>
+        <h3 style="margin: 0; color: #132c4d; font-size: 18px;">👇 請依序長按下方圖片儲存</h3>
+        <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">(受限於 iPhone 系統，請在此處將這 4 張圖依序長按存入相簿)</p>
+        <div id="batch-export-container" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+            <!-- 圖片會動態加在這裡 -->
+        </div>
+        <button class="btn btn-primary" style="width: 100%; margin-top: 15px;" onclick="document.getElementById('batch-export-modal').style.display='none'">✅ 存好了</button>
     </div>
 </div>
 
@@ -107,6 +120,7 @@
     </div>
 </div>
 
+<!-- 設定彈窗 -->
 <div id="rate-settings-modal" class="modal-overlay" style="z-index: 10000;">
     <div class="modal-content" style="width: 420px;">
         <span class="close-modal-btn" onclick="toggleSettings()">×</span>
@@ -163,6 +177,7 @@
         </div>
     </h2>
 
+    <!-- 1. 按鈕區 -->
     <div class="controls">
         <input type="file" id="image-loader" accept="image/*" multiple style="display:none;">
         <button class="btn" onclick="document.getElementById('image-loader').click()" style="background:#2b6cb0;">📁 批次上傳相簿圖片 (上限4張)</button>
@@ -170,48 +185,50 @@
         <button class="btn btn-secondary" onclick="toggleSettings()">⚙️ 系統設定 (LINE ID/匯率)</button>
         <button class="btn btn-dark" onclick="refreshCodes()">🔄 重整最新代碼</button>
         
-        <!-- 下載與複製 -->
         <button class="btn btn-warning" onclick="copyCurrentImageToClipboard()">✂️ 複製當前圖片</button>
-        <button class="btn btn-success" onclick="downloadAllImages()">💾 批次下載全部圖片</button>
+        <button class="btn btn-success" onclick="openBatchExportModal()">💾 批次產生全部圖片</button>
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原標籤</button>
     </div>
     
-    <!-- 縮圖列 -->
-    <div class="thumbnail-strip" id="thumbnail-strip">
-        <p style="margin: 0 auto; color: #a0aec0; font-size: 14px; font-weight: bold;">目前尚無圖片，請點擊上方上傳</p>
-    </div>
-
-    <!-- 自動文案產生區塊 -->
+    <!-- 2. LINE 文案區 (加入 oninput 觸發儲存) -->
     <div class="copy-section">
         <label style="font-weight: bold; color: #d69e2e; display: block; margin-bottom: 8px; font-size: 15px;">💬 LINE 群組推播文案預先編輯</label>
-        <textarea id="promo-text" placeholder="哈囉大家～今天連線帶來超級可愛的新品！\n趕快點擊下方連結自動幫您喊單喔👇👇👇"></textarea>
+        <textarea id="promo-text" placeholder="哈囉大家～今天連線帶來超級可愛的新品！\n趕快點擊下方連結自動幫您喊單喔👇👇👇" oninput="savePromoText()"></textarea>
         <button class="btn btn-warning" style="width: 100%; background: #d69e2e;" onclick="generateLineCopy()">📋 收集所有代碼，產生並複製 LINE 推播文案</button>
     </div>
 
+    <!-- 3. 流程提示 -->
+    <div class="tip">
+        <strong>📱 快速上架流程：</strong><br>
+        1. 點擊 <b>【📁 批次上傳相簿圖片】</b> 一次選取最多 4 張商品圖。<br>
+        2. 點擊下方【縮圖】切換圖片，依序為每張圖片打上價格標籤。<br>
+        3. 點擊 <b>【💾 批次產生全部圖片】</b> 將 4 張圖存入相簿，去 LINE 勾選這 4 張傳送。<br>
+        4. 在上方黃色區塊打好開場白後，點擊 <b>【📋 產生並複製 LINE 推播文案】</b> 去 LINE 貼上發送。<br>
+        5. 最後務必點擊最下方 <b>【☁️ 批次確認並同步所有照片到後台】</b>，機器人才抓得到客人的喊單！
+    </div>
+
+    <!-- 4. 縮圖列 -->
+    <div class="thumbnail-strip" id="thumbnail-strip">
+        <p style="margin: 0 auto; color: #a0aec0; font-size: 14px; font-weight: bold;">目前尚無圖片，請點擊上方按鈕上傳</p>
+    </div>
+
+    <!-- 5. 標籤大小調整 -->
     <div class="slider-container">
         <label for="size-slider">🔍 標籤大小：</label>
         <input type="range" id="size-slider" min="10" max="100" value="25" oninput="redrawCanvas()">
     </div>
     
-    <div class="tip">
-        <strong>📱 快速上架流程：</strong><br>
-        1. 點擊 <b>【📁 批次上傳相簿圖片】</b> 一次選取最多 4 張商品圖。<br>
-        2. 點擊縮圖切換圖片，依序為每張圖片打上價格標籤。<br>
-        3. 點擊 <b>【💾 批次下載全部圖片】</b> 存入相簿，去 LINE 勾選這 4 張傳送（或點 <b>【✂️ 複製當前圖片】</b> 一張張貼）。<br>
-        4. 在黃色區塊打好開場白後，點擊 <b>【📋 產生並複製 LINE 推播文案】</b> 去 LINE 貼上發送。<br>
-        5. 最後務必點擊最下方 <b>【☁️ 批次確認並同步所有照片到後台】</b>，機器人才抓得到客人的喊單！
-    </div>
-    
+    <!-- 6. 大畫布 -->
     <div class="canvas-container" id="canvas-box">
         <p id="placeholder-text" style="color: #a0aec0; font-weight: bold; font-size: 16px;">請選取一張圖片開始標價</p>
         <canvas id="photo-canvas" style="display:none;"></canvas>
     </div>
 
+    <!-- 7. 同步按鈕 -->
     <button class="btn btn-primary" onclick="syncAllToBackend(this)" style="width: 100%; margin-top: 20px; padding: 18px; font-size: 18px;">☁️ 批次確認並同步所有照片到後台</button>
 </div>
 
 <script>
-    // ⚠️ 請確認您的 GAS 網址與 ImgBB Key 是否正確
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxjeKY2LuG_z2NxPdYsnGf8OF8JIy6LqxpHuYTd-rjVZ8Wj5spuU07N8UsZzoCeWbuE/exec";
     const IMGBB_API_KEY = "047c09f72967af944b7686625c1c9680";
 
@@ -237,7 +254,6 @@
         { limit: 9999999, rate: 0.23 } 
     ];
 
-    // 🟢 補齊：顯示通知的函數
     function showToast(msg) {
         let toast = document.getElementById('toast');
         if (!toast) return;
@@ -246,15 +262,19 @@
         setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
 
-    // 🟢 補齊：關閉圖片匯出彈窗的函數
-    function closeExportModal() {
-        document.getElementById('image-export-modal').style.display = 'none';
+    // 🌟 文案記憶功能
+    function savePromoText() {
+        localStorage.setItem("promoText", document.getElementById('promo-text').value);
     }
 
     window.addEventListener('DOMContentLoaded', () => {
         refreshCodes(false);
+        // 載入 LINE ID
         let savedLineId = localStorage.getItem("lineOaId");
         if(savedLineId) document.getElementById('line-oa-id').value = savedLineId;
+        // 載入記憶文案
+        let savedPromoText = localStorage.getItem("promoText");
+        if(savedPromoText) document.getElementById('promo-text').value = savedPromoText;
     });
 
     function refreshCodes(silent = false) {
@@ -317,7 +337,12 @@
         btn.disabled = true;
 
         let oaId = document.getElementById('line-oa-id').value.trim();
-        if(oaId) localStorage.setItem("lineOaId", oaId);
+        if (oaId) {
+            // 防呆：確保開頭有 @
+            if (!oaId.startsWith('@')) oaId = '@' + oaId;
+            document.getElementById('line-oa-id').value = oaId;
+            localStorage.setItem("lineOaId", oaId);
+        }
 
         exchangeRates[0].limit = parseFloat(document.getElementById('r1-lim').value) || 1000;
         exchangeRates[0].rate = parseFloat(document.getElementById('r1-rate').value) || 0.3;
@@ -358,7 +383,7 @@
         return Math.ceil((val * rate) / 10) * 10;
     }
 
-    // 🌟 修正的 iOS 多圖上傳處理 (記憶體極致優化版)
+    // 🌟 修正的 iOS 多圖上傳處理 (記憶體優化)
     document.getElementById('image-loader').addEventListener('change', function(e) {
         let files = Array.from(e.target.files);
         if(files.length === 0) return;
@@ -368,18 +393,17 @@
             files = files.slice(0, 4);
         }
         
-        showToast("⏳ 正在優化與載入圖片，請稍候...");
+        showToast("⏳ 正在載入圖片，請稍候...");
         
         let loadedCount = 0;
         
-        // 幫助函數：確保每個檔案在讀取完成後進行判斷
         function checkDone() {
             loadedCount++;
             if(loadedCount === files.length) {
                 renderThumbnailStrip();
-                if (currentImgIndex === -1) switchImage(imageFiles.length - files.length); // 切換到剛上傳的第一張
+                if (currentImgIndex === -1) switchImage(imageFiles.length - files.length); 
                 showToast(`✅ 成功載入 ${files.length} 張圖片`);
-                document.getElementById('image-loader').value = ''; // 讀取完畢才清空
+                document.getElementById('image-loader').value = ''; 
             }
         }
 
@@ -388,8 +412,7 @@
             reader.onload = function(event) { 
                 let imgObj = new Image();
                 imgObj.onload = function() {
-                    // 🌟 針對 iPhone 大照片先透過 Canvas 進行壓縮，避免記憶體崩潰
-                    const MAX_SIZE = 1000;
+                    const MAX_SIZE = 1200; // 提升一點畫質
                     let w = imgObj.width;
                     let h = imgObj.height;
 
@@ -405,7 +428,6 @@
                     let tCtx = tempCanvas.getContext('2d');
                     tCtx.drawImage(imgObj, 0, 0, w, h);
                     
-                    // 轉為較小的 Base64，釋放原圖記憶體負擔
                     let optimizedDataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
                     let finalImgObj = new Image();
                     
@@ -431,7 +453,6 @@
         });
     });
 
-    // 支援貼上圖片
     document.addEventListener('paste', function(e) {
         let items = e.clipboardData.items;
         for (let item of items) {
@@ -441,7 +462,7 @@
                 reader.onload = function(event) { 
                     let imgObj = new Image();
                     imgObj.onload = function() {
-                        const MAX_SIZE = 1000;
+                        const MAX_SIZE = 1200;
                         let w = imgObj.width; let h = imgObj.height;
                         if (w > MAX_SIZE || h > MAX_SIZE) {
                             let ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
@@ -470,7 +491,7 @@
     function renderThumbnailStrip() {
         let strip = document.getElementById('thumbnail-strip');
         if (imageFiles.length === 0) {
-            strip.innerHTML = '<p style="margin: 0 auto; color: #a0aec0; font-size: 14px; font-weight: bold;">目前尚無圖片，請點擊上方上傳</p>';
+            strip.innerHTML = '<p style="margin: 0 auto; color: #a0aec0; font-size: 14px; font-weight: bold;">目前尚無圖片，請點擊上方按鈕上傳</p>';
             return;
         }
 
@@ -499,7 +520,6 @@
         if (currentImgIndex === -1) return;
         let img = imageFiles[currentImgIndex].imgElement;
         
-        // 由於我們上傳時已經控制過尺寸在 1000px 內，這裡可以直接 1:1 給 Canvas
         canvas.width = img.width;
         canvas.height = img.height;
         document.getElementById('placeholder-text').style.display = 'none';
@@ -507,7 +527,7 @@
         redrawCanvas();
     }
 
-    // 🌟 複製當前畫布到剪貼簿 
+    // 🌟 複製當前畫布到剪貼簿
     function copyCurrentImageToClipboard() {
         if (currentImgIndex === -1) return alert("請先選擇照片！");
         try {
@@ -531,38 +551,47 @@
         }
     }
 
-    // 🌟 批次下載所有有處理過的圖片 (針對 iOS 特殊處理)
-    async function downloadAllImages() {
-        if (imageFiles.length === 0) return alert("沒有可下載的圖片！");
+    // 🌟 批次匯出全部圖片 (彈出面板供 iOS 長按存檔)
+    async function openBatchExportModal() {
+        if (imageFiles.length === 0) return alert("沒有圖片可匯出！");
         
         let validImages = imageFiles.filter(img => img.badges.length > 0);
         if (validImages.length === 0) validImages = imageFiles; 
 
-        showToast(`⏳ 正在準備 ${validImages.length} 張圖片下載...`);
+        showToast(`⏳ 正在準備 ${validImages.length} 張圖片...`);
+        
+        let container = document.getElementById('batch-export-container');
+        container.innerHTML = ''; // 清空舊的
+
         let originalIndex = currentImgIndex;
         
         for (let i = 0; i < imageFiles.length; i++) {
             if (!validImages.includes(imageFiles[i])) continue;
 
             switchImage(i); 
-            await new Promise(r => setTimeout(r, 100)); 
+            await new Promise(r => setTimeout(r, 100)); // 等待畫布重繪
             
             let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
             
-            try {
-                let link = document.createElement('a');
-                link.download = `連線商品_${new Date().getTime()}_${i+1}.jpg`;
-                link.href = dataUrl;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            } catch(e) {
-                console.error("下載遭阻擋", e);
-            }
+            // 建立 img 標籤放入彈窗中
+            let imgEl = document.createElement('img');
+            imgEl.src = dataUrl;
+            imgEl.style.maxWidth = '100%';
+            imgEl.style.borderRadius = '10px';
+            imgEl.style.border = '1px solid #dbe4f0';
+            imgEl.style.boxShadow = '0 4px 10px rgba(0,0,0,0.1)';
+            
+            // 確保 iOS 可以長按
+            imgEl.style.webkitTouchCallout = 'default';
+            imgEl.style.userSelect = 'auto';
+            imgEl.style.pointerEvents = 'auto';
+
+            container.appendChild(imgEl);
         }
 
-        switchImage(originalIndex); 
-        showToast("✅ 批次下載指令已發送！若沒反應建議點選【✂️ 複製當前圖片】一張張貼。");
+        switchImage(originalIndex); // 切回原本視角
+        document.getElementById('batch-export-modal').style.display = 'flex';
+        showToast("✅ 圖片準備完畢！");
     }
 
     // 🌟 產生並複製 LINE 專屬圖文連結文案
@@ -572,6 +601,8 @@
             toggleSettings();
             return alert("⚠️ 請先在設定面板中輸入您的 LINE 官方帳號 ID (例如 @798igrjf)");
         }
+        
+        if (!oaId.startsWith('@')) oaId = '@' + oaId; // 防呆
 
         let greetingText = document.getElementById('promo-text').value.trim();
         let finalText = greetingText ? greetingText + "\n\n" : "";

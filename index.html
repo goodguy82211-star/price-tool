@@ -28,7 +28,6 @@
         .btn-dark { background: #4a5568; }
         .btn-info { background: #00b5ad; } 
         
-        /* 縮圖列設計 */
         .thumbnail-strip { display: flex; overflow-x: auto; gap: 12px; padding: 10px 5px; margin-bottom: 15px; border-radius: 12px; background: #eef3f8; border: 1px solid #c6d4e1; min-height: 75px; align-items: center;}
         .thumbnail-wrap { position: relative; flex-shrink: 0; cursor: pointer; transition: 0.2s; }
         .thumbnail-wrap img { width: 65px; height: 65px; object-fit: cover; border-radius: 8px; border: 3px solid transparent; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -36,7 +35,6 @@
         .badge-count { position: absolute; top: -5px; right: -5px; background: #e53e3e; color: white; font-size: 11px; font-weight: bold; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; display: none;}
         .thumbnail-wrap.has-badges .badge-count { display: flex; }
 
-        /* LINE 文案區 */
         .copy-section { background: #fffbeb; padding: 15px; border-radius: 12px; border: 2px dashed #d69e2e; margin-bottom: 15px; }
         .copy-section textarea { width: 100%; box-sizing: border-box; padding: 12px; border-radius: 8px; border: 1px solid #cbd5e0; margin-bottom: 10px; font-family: inherit; font-size: 14px; resize: vertical; min-height: 80px; outline: none; }
         .copy-section textarea:focus { border-color: #d69e2e; }
@@ -48,7 +46,7 @@
         .canvas-container { position: relative; border: 2px dashed #c6d4e1; border-radius: 16px; overflow: hidden; background: #fafafa; text-align: center; min-height: 300px; display: flex; justify-content: center; align-items: center; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;}
         canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; cursor: crosshair; touch-action: none;}
         
-        .tip { font-size: 13px; color: #718096; margin-top: 8px; line-height: 1.6; background: #f0f4f8; padding: 12px 15px; border-left: 4px solid #3182ce; border-radius: 8px; margin-bottom: 20px;}
+        .tip { font-size: 13px; color: #718096; margin-top: 8px; line-height: 1.6; background: #f0f4f8; padding: 12px 15px; border-left: 4px solid #3182ce; border-radius: 8px; margin-bottom: 15px;}
         
         #toast {
             position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%);
@@ -65,13 +63,6 @@
         .modal-content {
             background: white; padding: 25px 20px 20px 20px; border-radius: 20px; max-width: 90%; max-height: 90%; overflow-y: auto; position: relative;
         }
-        #image-export-modal .modal-content { text-align: center; }
-        .modal-content img {
-            max-width: 100%; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: 15px; border: 1px solid #dbe4f0;
-            -webkit-touch-callout: default !important;
-            user-select: auto !important;
-            pointer-events: auto !important;
-        }
         .close-modal-btn {
             position: absolute; top: 12px; right: 18px; font-size: 28px; cursor: pointer; color: #a0aec0; font-weight: bold; line-height: 1; transition: 0.2s;
         }
@@ -86,30 +77,15 @@
 
 <div id="toast">✅ 同步成功！</div>
 
-<!-- 單圖匯出用的彈窗 -->
 <div id="image-export-modal" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content" style="text-align: center;">
         <span class="close-modal-btn" onclick="document.getElementById('image-export-modal').style.display='none'">×</span>
         <h3 style="margin: 0; color: #132c4d; font-size: 18px;">👇 請長按下方圖片</h3>
         <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">選擇「拷貝」或「儲存影像」，即可去 LINE 貼上！</p>
-        <img id="export-image-result" src="">
+        <img id="export-image-result" src="" style="max-width: 100%; border-radius: 10px; margin-top: 15px; border: 1px solid #dbe4f0; -webkit-touch-callout: default !important; user-select: auto !important; pointer-events: auto !important;">
     </div>
 </div>
 
-<!-- 批次匯出圖片用的彈窗 (解決iOS限制) -->
-<div id="batch-export-modal" class="modal-overlay">
-    <div class="modal-content" style="width: 90%; max-height: 85vh; overflow-y: auto; text-align: center;">
-        <span class="close-modal-btn" onclick="document.getElementById('batch-export-modal').style.display='none'">×</span>
-        <h3 style="margin: 0; color: #132c4d; font-size: 18px;">👇 請依序長按下方圖片儲存</h3>
-        <p style="margin: 5px 0 0 0; font-size: 14px; color: #e53e3e; font-weight: bold;">(受限於 iPhone 系統，請在此處將這 4 張圖依序長按存入相簿)</p>
-        <div id="batch-export-container" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
-            <!-- 圖片會動態加在這裡 -->
-        </div>
-        <button class="btn btn-primary" style="width: 100%; margin-top: 15px;" onclick="document.getElementById('batch-export-modal').style.display='none'">✅ 存好了</button>
-    </div>
-</div>
-
-<!-- 文字匯出用的彈窗 -->
 <div id="text-export-modal" class="modal-overlay">
     <div class="modal-content" style="width: 500px;">
         <span class="close-modal-btn" onclick="document.getElementById('text-export-modal').style.display='none'">×</span>
@@ -120,7 +96,6 @@
     </div>
 </div>
 
-<!-- 設定彈窗 -->
 <div id="rate-settings-modal" class="modal-overlay" style="z-index: 10000;">
     <div class="modal-content" style="width: 420px;">
         <span class="close-modal-btn" onclick="toggleSettings()">×</span>
@@ -186,11 +161,11 @@
         <button class="btn btn-dark" onclick="refreshCodes()">🔄 重整最新代碼</button>
         
         <button class="btn btn-warning" onclick="copyCurrentImageToClipboard()">✂️ 複製當前圖片</button>
-        <button class="btn btn-success" onclick="openBatchExportModal()">💾 批次產生全部圖片</button>
+        <button class="btn btn-success" onclick="downloadAllImages()">🚀 一鍵分享/儲存 4 張圖</button>
         <button class="btn btn-danger" onclick="undoLastBadge()">↩️ 復原標籤</button>
     </div>
     
-    <!-- 2. LINE 文案區 (加入 oninput 觸發儲存) -->
+    <!-- 2. LINE 文案區 (記憶功能) -->
     <div class="copy-section">
         <label style="font-weight: bold; color: #d69e2e; display: block; margin-bottom: 8px; font-size: 15px;">💬 LINE 群組推播文案預先編輯</label>
         <textarea id="promo-text" placeholder="哈囉大家～今天連線帶來超級可愛的新品！\n趕快點擊下方連結自動幫您喊單喔👇👇👇" oninput="savePromoText()"></textarea>
@@ -202,7 +177,7 @@
         <strong>📱 快速上架流程：</strong><br>
         1. 點擊 <b>【📁 批次上傳相簿圖片】</b> 一次選取最多 4 張商品圖。<br>
         2. 點擊下方【縮圖】切換圖片，依序為每張圖片打上價格標籤。<br>
-        3. 點擊 <b>【💾 批次產生全部圖片】</b> 將 4 張圖存入相簿，去 LINE 勾選這 4 張傳送。<br>
+        3. 點擊 <b>【🚀 一鍵分享/儲存 4 張圖】</b> 瞬間存入相簿，去 LINE 勾選這 4 張傳送。<br>
         4. 在上方黃色區塊打好開場白後，點擊 <b>【📋 產生並複製 LINE 推播文案】</b> 去 LINE 貼上發送。<br>
         5. 最後務必點擊最下方 <b>【☁️ 批次確認並同步所有照片到後台】</b>，機器人才抓得到客人的喊單！
     </div>
@@ -224,7 +199,7 @@
         <canvas id="photo-canvas" style="display:none;"></canvas>
     </div>
 
-    <!-- 7. 同步按鈕 -->
+    <!-- 7. 極速同步按鈕 -->
     <button class="btn btn-primary" onclick="syncAllToBackend(this)" style="width: 100%; margin-top: 20px; padding: 18px; font-size: 18px;">☁️ 批次確認並同步所有照片到後台</button>
 </div>
 
@@ -262,17 +237,14 @@
         setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
 
-    // 🌟 文案記憶功能
     function savePromoText() {
         localStorage.setItem("promoText", document.getElementById('promo-text').value);
     }
 
     window.addEventListener('DOMContentLoaded', () => {
         refreshCodes(false);
-        // 載入 LINE ID
         let savedLineId = localStorage.getItem("lineOaId");
         if(savedLineId) document.getElementById('line-oa-id').value = savedLineId;
-        // 載入記憶文案
         let savedPromoText = localStorage.getItem("promoText");
         if(savedPromoText) document.getElementById('promo-text').value = savedPromoText;
     });
@@ -314,7 +286,6 @@
         imageFiles.forEach(imgObj => {
             imgObj.badges.forEach(b => { if (b.code) localUsed.add(String(b.code).toUpperCase()); });
         });
-
         const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         for (let i = 0; i < letters.length; i++) {
             let letter = letters[i];
@@ -338,8 +309,7 @@
 
         let oaId = document.getElementById('line-oa-id').value.trim();
         if (oaId) {
-            // 防呆：確保開頭有 @
-            if (!oaId.startsWith('@')) oaId = '@' + oaId;
+            if (!oaId.startsWith('@')) oaId = '@' + oaId; // 🌟 防呆：忘記打@自動補上
             document.getElementById('line-oa-id').value = oaId;
             localStorage.setItem("lineOaId", oaId);
         }
@@ -383,7 +353,6 @@
         return Math.ceil((val * rate) / 10) * 10;
     }
 
-    // 🌟 修正的 iOS 多圖上傳處理 (記憶體優化)
     document.getElementById('image-loader').addEventListener('change', function(e) {
         let files = Array.from(e.target.files);
         if(files.length === 0) return;
@@ -394,7 +363,6 @@
         }
         
         showToast("⏳ 正在載入圖片，請稍候...");
-        
         let loadedCount = 0;
         
         function checkDone() {
@@ -412,16 +380,14 @@
             reader.onload = function(event) { 
                 let imgObj = new Image();
                 imgObj.onload = function() {
-                    const MAX_SIZE = 1200; // 提升一點畫質
+                    const MAX_SIZE = 1200; 
                     let w = imgObj.width;
                     let h = imgObj.height;
-
                     if (w > MAX_SIZE || h > MAX_SIZE) {
                         let ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
                         w = Math.round(w * ratio);
                         h = Math.round(h * ratio);
                     }
-
                     let tempCanvas = document.createElement('canvas');
                     tempCanvas.width = w;
                     tempCanvas.height = h;
@@ -430,22 +396,13 @@
                     
                     let optimizedDataUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
                     let finalImgObj = new Image();
-                    
                     finalImgObj.onload = function() {
-                        imageFiles.push({
-                            fileDataUrl: optimizedDataUrl,
-                            imgElement: finalImgObj,
-                            badges: []
-                        });
+                        imageFiles.push({ fileDataUrl: optimizedDataUrl, imgElement: finalImgObj, badges: [] });
                         checkDone();
                     };
                     finalImgObj.src = optimizedDataUrl;
                 };
-                
-                imgObj.onerror = function() {
-                    console.error("有圖片無法解析");
-                    checkDone(); 
-                };
+                imgObj.onerror = function() { checkDone(); };
                 imgObj.src = event.target.result; 
             };
             reader.onerror = function() { checkDone(); };
@@ -527,7 +484,6 @@
         redrawCanvas();
     }
 
-    // 🌟 複製當前畫布到剪貼簿
     function copyCurrentImageToClipboard() {
         if (currentImgIndex === -1) return alert("請先選擇照片！");
         try {
@@ -537,64 +493,60 @@
                 navigator.clipboard.write([item]).then(() => {
                     showToast("✅ 當前圖片已複製到剪貼簿！可直接去 LINE 貼上");
                 }).catch(err => {
-                    let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    let dataUrl = canvas.toDataURL('image/jpeg', 0.9);
                     let resultImg = document.getElementById('export-image-result');
                     resultImg.src = dataUrl;
                     document.getElementById('image-export-modal').style.display = 'flex';
                 });
             }, 'image/png');
         } catch(e) {
-            let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            let dataUrl = canvas.toDataURL('image/jpeg', 0.9);
             let resultImg = document.getElementById('export-image-result');
             resultImg.src = dataUrl;
             document.getElementById('image-export-modal').style.display = 'flex';
         }
     }
 
-    // 🌟 批次匯出全部圖片 (彈出面板供 iOS 長按存檔)
-    async function openBatchExportModal() {
+    // 🌟 批次產生並利用 iOS Web Share API，一鍵儲存 4 張圖！
+    async function downloadAllImages() {
         if (imageFiles.length === 0) return alert("沒有圖片可匯出！");
         
         let validImages = imageFiles.filter(img => img.badges.length > 0);
         if (validImages.length === 0) validImages = imageFiles; 
 
         showToast(`⏳ 正在準備 ${validImages.length} 張圖片...`);
-        
-        let container = document.getElementById('batch-export-container');
-        container.innerHTML = ''; // 清空舊的
-
         let originalIndex = currentImgIndex;
+        let filesToShare = [];
         
         for (let i = 0; i < imageFiles.length; i++) {
             if (!validImages.includes(imageFiles[i])) continue;
-
             switchImage(i); 
-            await new Promise(r => setTimeout(r, 100)); // 等待畫布重繪
+            await new Promise(r => setTimeout(r, 30)); 
             
-            let dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            
-            // 建立 img 標籤放入彈窗中
-            let imgEl = document.createElement('img');
-            imgEl.src = dataUrl;
-            imgEl.style.maxWidth = '100%';
-            imgEl.style.borderRadius = '10px';
-            imgEl.style.border = '1px solid #dbe4f0';
-            imgEl.style.boxShadow = '0 4px 10px rgba(0,0,0,0.1)';
-            
-            // 確保 iOS 可以長按
-            imgEl.style.webkitTouchCallout = 'default';
-            imgEl.style.userSelect = 'auto';
-            imgEl.style.pointerEvents = 'auto';
-
-            container.appendChild(imgEl);
+            let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+            let file = new File([blob], `連線商品_${new Date().getTime()}_${i+1}.jpg`, { type: 'image/jpeg' });
+            filesToShare.push(file);
         }
 
-        switchImage(originalIndex); // 切回原本視角
-        document.getElementById('batch-export-modal').style.display = 'flex';
-        showToast("✅ 圖片準備完畢！");
+        switchImage(originalIndex);
+
+        if (navigator.canShare && navigator.canShare({ files: filesToShare })) {
+            try {
+                await navigator.share({
+                    files: filesToShare,
+                    title: '連線商品圖'
+                });
+                showToast("✅ 已開啟分享選單，請點擊「儲存影像」");
+            } catch (err) {
+                console.error(err);
+                showToast("⚠️ 分享已取消");
+            }
+        } else {
+            // 如果瀏覽器不支援，退回單張彈窗
+            showToast("⚠️ 您的瀏覽器不支援批次儲存，請使用【✂️ 複製當前圖片】");
+        }
     }
 
-    // 🌟 產生並複製 LINE 專屬圖文連結文案
     function generateLineCopy() {
         let oaId = document.getElementById('line-oa-id').value.trim();
         if (!oaId) {
@@ -602,7 +554,7 @@
             return alert("⚠️ 請先在設定面板中輸入您的 LINE 官方帳號 ID (例如 @798igrjf)");
         }
         
-        if (!oaId.startsWith('@')) oaId = '@' + oaId; // 防呆
+        if (!oaId.startsWith('@')) oaId = '@' + oaId; // 🌟 防呆補@
 
         let greetingText = document.getElementById('promo-text').value.trim();
         let finalText = greetingText ? greetingText + "\n\n" : "";
@@ -633,7 +585,6 @@
         });
     }
 
-    // 畫布點擊邏輯
     function getPointerPos(e) {
         const rect = canvas.getBoundingClientRect();
         let clientX = e.clientX; let clientY = e.clientY;
@@ -902,60 +853,71 @@
         ctx.restore();
     }
 
-    // 🌟 批次同步所有含有標籤的照片到後台
+    // 🚀🚀 2. 極速批次同步到後台 (併發上傳 + 一次寫入) 🚀🚀
     async function syncAllToBackend(btn) {
         let validImages = imageFiles.filter(img => img.badges.length > 0);
         if (validImages.length === 0) return showToast("⚠️ 目前沒有含有代碼的相片可以同步！");
 
         let originalBtnText = btn.innerText;
-        btn.innerText = "⏳ 批次同步中，請勿關閉網頁...";
+        btn.innerText = "⏳ 批次高速同步中，請勿關閉網頁...";
         btn.disabled = true; 
-        
-        let successCount = 0;
         let originalIndex = currentImgIndex;
+        let batchData = [];
 
         try {
+            // 步驟一：非同步併發上傳圖片到 ImgBB
+            let uploadPromises = [];
             for (let i = 0; i < validImages.length; i++) {
                 let imgObj = validImages[i];
                 let fileIndex = imageFiles.indexOf(imgObj);
                 switchImage(fileIndex);
-                await new Promise(r => setTimeout(r, 100)); // 確保畫布重繪
-                
-                let imgUrl = "";
-                try {
-                    let base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-                    let formData = new FormData();
-                    formData.append("image", base64Image);
-                    
-                    let imgbbRes = await fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_API_KEY, { method: "POST", body: formData });
-                    let imgbbData = await imgbbRes.json();
-                    if (imgbbData.success) imgUrl = imgbbData.data.url; 
-                } catch(e) {
-                    console.error("相片上傳失敗:", e);
-                }
+                await new Promise(r => setTimeout(r, 20)); // 給一點點時間重繪
 
-                for (let b of imgObj.badges) {
-                    try {
-                        let res = await fetch(GAS_URL, { 
-                            method: "POST", 
-                            body: JSON.stringify({ action: "syncPriceFromTool", productCode: b.code, newPrice: b.twd, imgUrl: imgUrl }) 
-                        });
-                        if(await res.text() === "success") {
-                            successCount++;
-                            usedCodes.add(String(b.code).toUpperCase()); 
-                        }
-                    } catch (err) {
-                        console.error("單筆寫入失敗:", err);
-                    }
-                }
+                // 稍微降低壓縮率以加快上傳速度 (不影響肉眼觀看)
+                let base64Image = canvas.toDataURL('image/jpeg', 0.7).split(',')[1]; 
+                let formData = new FormData();
+                formData.append("image", base64Image);
+                
+                // 將上傳動作打包成 Promise，不在此使用 await 卡死迴圈
+                let p = fetch("https://api.imgbb.com/1/upload?key=" + IMGBB_API_KEY, { method: "POST", body: formData })
+                    .then(res => res.json())
+                    .then(data => {
+                        return data.success ? { imgObj, url: data.data.url } : { imgObj, url: "" };
+                    }).catch(err => ({ imgObj, url: "" }));
+                
+                uploadPromises.push(p);
             }
-            
-            if(successCount > 0) {
-                showToast(`✅ 同步完成！共新增/更新了 ${successCount} 筆商品。`);
+
+            // 等待所有圖片「同時」上傳完畢 (大幅節省時間)
+            let uploadResults = await Promise.all(uploadPromises);
+
+            // 步驟二：打包所有的標籤資料成一個 Array
+            uploadResults.forEach(res => {
+                res.imgObj.badges.forEach(b => {
+                    batchData.push({
+                        productCode: b.code,
+                        newPrice: b.twd,
+                        imgUrl: res.url
+                    });
+                });
+            });
+
+            // 步驟三：向後台發送「唯一一次」的新版批次 API 請求
+            let gasRes = await fetch(GAS_URL, { 
+                method: "POST", 
+                body: JSON.stringify({ action: "batchSyncPriceFromTool", data: batchData }) 
+            });
+
+            if (await gasRes.text() === "success") {
+                batchData.forEach(item => usedCodes.add(String(item.productCode).toUpperCase()));
+                showToast(`✅ 極速同步完成！共建檔 ${batchData.length} 筆商品。`);
                 refreshCodes(true);
             } else {
-                showToast(`❌ 同步失敗，請檢查網路連線。`);
+                showToast(`❌ 寫入資料庫失敗，請檢查網路。`);
             }
+        } catch(e) {
+            console.error(e);
+            showToast(`❌ 同步發生錯誤！`);
         } finally {
             switchImage(originalIndex);
             btn.innerText = originalBtnText;
